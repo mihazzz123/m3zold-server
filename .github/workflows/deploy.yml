@@ -9,6 +9,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: List files before upload
+      run: ls -la
+
     - name: Upload project to VPS
       uses: appleboy/scp-action@v0.1.4
       with:
@@ -28,4 +34,12 @@ jobs:
           cd /root/go-laeg
           docker-compose down
           docker-compose up -d --build
+              - name: Healthcheck
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: 83.166.247.181
+        username: root
+        key: ${{ secrets.VPS_SSH_KEY }}
+        script: |
+          curl -f http://localhost:8080/auth/check || exit 1
 

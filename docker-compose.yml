@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      - DB_URL=postgres://laeguser:laegpass@db:5432/laegdb
+    restart: always
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: laegdb
+      POSTGRES_USER: laeguser
+      POSTGRES_PASSWORD: laegpass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  pgdata:

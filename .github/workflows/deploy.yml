@@ -19,7 +19,8 @@ jobs:
         username: root
         key: ${{ secrets.VPS_SSH_KEY }}
         script: |
-          cd /root/go-laeg || git clone git@github.com:mihazzz123/m3zold-server.git /root/go-laeg
+          rm -rf /root/go-laeg
+          git clone git@github.com:mihazzz123/m3zold-server.git /root/go-laeg
           cd /root/go-laeg
           git config --global --add safe.directory /root/go-laeg
           git pull origin main

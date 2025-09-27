@@ -13,7 +13,7 @@ RUN go mod vendor
 COPY . .
 
 # Сборка бинарника
-RUN go build -v -o m3zold-server ./src
+RUN go build -v -o m3zold-server ./cmd
 
 EXPOSE 8080
 CMD ["./m3zold-server"]

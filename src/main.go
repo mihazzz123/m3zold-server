@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/mihazzz123/m3zold-server/api/handlers"
-	"github.com/mihazzz123/m3zold-server/api/middleware"
+	"github.com/mihazzz123/m3zold-server/src/handlers"
+	"github.com/mihazzz123/m3zold-server/src/middleware"
 
 	"github.com/gin-gonic/gin"
 )

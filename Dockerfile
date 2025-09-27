@@ -6,7 +6,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 
 # Устанавливаем зависимости
-RUN go mod 
+RUN go mod tidy
 RUN go mod vendor
 
 # Копируем остальной код

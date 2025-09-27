@@ -1,4 +1,4 @@
-name: Deploy m3zold server API
+name: Deploy m3zold server
 
 on:
   push:

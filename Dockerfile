@@ -4,7 +4,7 @@ WORKDIR /app
 COPY . .
 
 RUN go mod download
-RUN go build -o go-laeg ./src
+RUN go build -o m3zold-server ./src
 
 EXPOSE 8080
-CMD ["./go-laeg"]
+CMD ["./m3zold-server"]

@@ -2,7 +2,9 @@ package container
 
 import (
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http"
+	database "github.com/mihazzz123/m3zold-server/internal/infrastructure"
 	"github.com/mihazzz123/m3zold-server/internal/infrastructure/postgres"
+	"github.com/mihazzz123/m3zold-server/internal/usecase"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/device"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/user"
 
@@ -10,11 +12,21 @@ import (
 )
 
 type Container struct {
+	// Health
+	HealthChecker *database.HealthChecker
+	HealthUseCase *usecase.HealthUseCase
+	HealthHandler *http.HealthHandler
+
 	UserHandler   *http.UserHandler
 	DeviceHandler *http.DeviceHandler
 }
 
 func New(db *pgxpool.Pool) *Container {
+	// Health dependencies
+	healthChecker := database.NewHealthChecker(db)
+	healthUseCase := usecase.NewHealthUseCase(healthChecker)
+	healthHandler := http.NewHealthHandler(healthUseCase)
+
 	// Repositories
 	userRepo := postgres.NewUserRepo(db)
 	deviceRepo := postgres.NewDeviceRepo(db)
@@ -35,5 +47,8 @@ func New(db *pgxpool.Pool) *Container {
 	return &Container{
 		UserHandler:   userHandler,
 		DeviceHandler: deviceHandler,
+		HealthChecker: healthChecker,
+		HealthUseCase: healthUseCase,
+		HealthHandler: healthHandler,
 	}
 }

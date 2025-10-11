@@ -4,9 +4,12 @@ RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
 WORKDIR /app
 
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
 EXPOSE 8080 2345
 
-# Прямой запуск без предварительной сборки
-CMD ["dlv", "debug", "./cmd/main.go", "--headless", "--listen=:2345", "--api-version=2", "--accept-multiclient", "--output=/tmp/debug_binary", "--log", "--"]
+# Delve с автоматической перекомпиляцией
+CMD ["dlv", "debug", "./cmd/main.go", "--headless", "--listen=:2345", "--api-version=2", "--accept-multiclient", "--continue", "--output=/tmp/debug_binary"]

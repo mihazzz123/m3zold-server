@@ -14,9 +14,10 @@ type Router struct {
 }
 
 func NewRouter(
+	authMiddleware gin.HandlerFunc,
 	userHandler *UserHandler,
 	deviceHandler *DeviceHandler,
-	authMiddleware gin.HandlerFunc,
+	healthHandler *HealthHandler,
 ) *gin.Engine {
 	r := gin.Default()
 	fmt.Println("Register called")
@@ -25,6 +26,10 @@ func NewRouter(
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
+
+	// Public routes
+	r.GET("/health", healthHandler.HealthCheck)
+	r.GET("/ready", healthHandler.ReadyCheck)
 
 	// Авторизация
 	r.POST("/auth/register", userHandler.Register)

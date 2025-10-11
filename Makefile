@@ -20,12 +20,17 @@ down:
 	docker-compose down
 
 debug-up:
-	docker-compose -f docker-compose.debug.yml up --build
+	docker-compose -f docker-compose.debug.yml up
+
+debug-restart:
+	docker-compose -f docker-compose.debug.yml restart api-debug
+
+debug-logs:
+	docker-compose -f docker-compose.debug.yml logs -f api-debug
 
 debug-down:
-	docker-compose -f docker-compose.debug.yml down --remove-orphans
+	docker-compose -f docker-compose.debug.yml down
 
-clean:
-	docker-compose down --volumes --remove-orphans
-	docker system prune -af
-	rm -f $(BINARY_NAME)
+# Полный перезапуск
+debug-rebuild: debug-down
+	docker-compose -f docker-compose.debug.yml up --build

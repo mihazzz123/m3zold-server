@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api-debug:
     build:
@@ -8,11 +6,15 @@ services:
     image: m3zold-server-debug
     ports:
       - "8081:8080"
-      - "2345:2345"
+      - "3333:2345"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - DB_URL=postgres://m3zold-server:m3zold-server@db:5432/m3zold-server
+    volumes:
+      - .:/app
+    working_dir: /app
     restart: unless-stopped
 
   db:
@@ -21,8 +23,15 @@ services:
       POSTGRES_DB: m3zold-server
       POSTGRES_USER: m3zold-server
       POSTGRES_PASSWORD: m3zold-server
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U m3zold-server -d m3zold-server" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
 volumes:

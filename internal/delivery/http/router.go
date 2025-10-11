@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,7 @@ func NewRouter(
 	authMiddleware gin.HandlerFunc,
 ) *gin.Engine {
 	r := gin.Default()
+	fmt.Println("Register called")
 
 	// Healthcheck
 	r.GET("/ping", func(c *gin.Context) {

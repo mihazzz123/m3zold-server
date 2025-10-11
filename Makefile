@@ -23,7 +23,7 @@ debug-up:
 	docker-compose -f docker-compose.debug.yml up --build
 
 debug-down:
-	docker-compose -f docker-compose.debug.yml down
+	docker-compose -f docker-compose.debug.yml down --remove-orphans
 
 clean:
 	docker-compose down --volumes --remove-orphans

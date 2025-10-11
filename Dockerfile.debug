@@ -1,24 +1,12 @@
-# Этап 1: сборка с отладочной информацией
-FROM golang:1.25.1 AS builder
+FROM golang:1.25.1
+
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
 WORKDIR /app
-
-COPY go.mod go.sum ./
-RUN go mod tidy
 
 COPY . .
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
-RUN go build -gcflags="all=-N -l" -o m3zold-server ./cmd
-
-# Этап 2: контейнер для дебага
-FROM golang:1.25.1
-
-WORKDIR /app
-
-COPY --from=builder /app/m3zold-server .
-COPY --from=builder /go/bin/dlv /go/bin/dlv
-
 EXPOSE 8080 2345
 
-CMD ["/go/bin/dlv", "exec", "./m3zold-server", "--headless", "--listen=:2345", "--api-version=2", "--accept-multiclient", "--log"]
+# Прямой запуск без предварительной сборки
+CMD ["dlv", "debug", "./cmd/main.go", "--headless", "--listen=:2345", "--api-version=2", "--accept-multiclient", "--output=/tmp/debug_binary", "--log", "--"]

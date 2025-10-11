@@ -2,18 +2,19 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Attach to Delve (Docker)",
+            "name": "Connect to Delve in Docker",
             "type": "go",
             "request": "attach",
             "mode": "remote",
-            "port": 2345,
             "host": "127.0.0.1",
+            "port": 3333, // Use the local port mapped in docker-compose or directly exposed
             "substitutePath": [
                 {
-                    "from": "C:/MyProjects/m3zold-server",
-                    "to": "C:/MyProjects/m3zold-server/cmd"
+                    "from": "${workspaceFolder}",
+                    "to": "/app" // This should match the WORKDIR in your Dockerfile
                 }
-            ]
+            ],
+            "trace": "verbose" // Optional: for detailed debugger logs
         }
     ]
 }

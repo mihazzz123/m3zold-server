@@ -1,6 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS m3zold_schema;
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS "m3zold_schema"."users" (
     id SERIAL PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     user_name TEXT UNIQUE NOT NULL,

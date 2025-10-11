@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS devices (
+CREATE TABLE IF NOT EXISTS  "m3zold_schema"."devices" (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,

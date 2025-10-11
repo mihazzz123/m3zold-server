@@ -9,12 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/mihazzz123/m3zold-server/internal/container"
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http"
 	database "github.com/mihazzz123/m3zold-server/internal/infrastructure"
 	"github.com/mihazzz123/m3zold-server/internal/usecase"
+	"github.com/mihazzz123/m3zold-server/migrations"
 
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )

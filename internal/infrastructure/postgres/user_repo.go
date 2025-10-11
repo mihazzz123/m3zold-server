@@ -25,6 +25,6 @@ func (r *userRepo) ExistsByEmail(ctx context.Context, email string) (bool, error
 func (r *userRepo) Create(ctx context.Context, u *user.User) error {
 	_, err := r.DB.Exec(ctx,
 		"INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3)",
-		u.Email, u.PasswordHash, u.Name)
+		u.Email, u.PasswordHash, u.UserName)
 	return err
 }

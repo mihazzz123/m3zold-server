@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +33,8 @@ func main() {
 		log.Fatal("DB error:", err)
 	}
 	defer pool.Close()
+
+	migrations.Migrate(ctx, pool)
 
 	c := container.New(pool)
 
@@ -86,4 +91,59 @@ func dummyAuthMiddleware() gin.HandlerFunc {
 		c.Set("user_id", userID)
 		c.Next()
 	}
+}
+
+// Middleware для безопасности
+func SecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", "default-src 'self'")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Защита от перебора (rate limiting)
+type RateLimiter struct {
+	store map[string][]time.Time
+	mu    sync.RWMutex
+}
+
+func (rl *RateLimiter) Check(r *http.Request) error {
+	ip := getClientIP(r)
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	windowStart := now.Add(-1 * time.Hour)
+
+	// Очистка старых записей
+	var recentAttempts []time.Time
+	for _, attempt := range rl.store[ip] {
+		if attempt.After(windowStart) {
+			recentAttempts = append(recentAttempts, attempt)
+		}
+	}
+
+	// Максимум 5 попыток в час
+	if len(recentAttempts) >= 5 {
+		return fmt.Errorf("rate limit exceeded")
+	}
+
+	recentAttempts = append(recentAttempts, now)
+	rl.store[ip] = recentAttempts
+
+	return nil
+}
+
+func getClientIP(r *http.Request) string {
+	// Учитываем прокси
+	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+		return strings.Split(ip, ",")[0]
+	}
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+	return r.RemoteAddr
 }

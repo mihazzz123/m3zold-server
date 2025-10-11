@@ -18,3 +18,9 @@ type User struct {
 	DeletedDt    *time.Time `json:"deleted_at" db:"deleted_at"`
 	IsActive     bool       `json:"is_active" db:"is_active"`
 }
+
+type RegisterRequest struct {
+	Email           string `json:"email"`
+	Password        string `json:"password"`
+	ConfirmPassword string `json:"confirm_password"`
+}

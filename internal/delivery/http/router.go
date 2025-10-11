@@ -1,10 +1,12 @@
 package http
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mihazzz123/m3zold-server/internal/config"
+	"github.com/mihazzz123/m3zold-server/internal/delivery/http/middleware"
 )
 
 type Router struct {
@@ -14,13 +16,16 @@ type Router struct {
 }
 
 func NewRouter(
-	authMiddleware gin.HandlerFunc,
+	ctx context.Context,
+	cfg *config.Config,
 	userHandler *UserHandler,
 	deviceHandler *DeviceHandler,
 	healthHandler *HealthHandler,
 ) *gin.Engine {
+	rateLimiter := middleware.NewRateLimiter()
 	r := gin.Default()
-	fmt.Println("Register called")
+	// Ограничение частоты запросов (реализуйте отдельно)
+	r.Use(rateLimiter.Middleware())
 
 	// Healthcheck
 	r.GET("/ping", func(c *gin.Context) {
@@ -33,10 +38,25 @@ func NewRouter(
 
 	// Авторизация
 	r.POST("/auth/register", userHandler.Register)
-	// r.POST("/auth/login", userHandler.Login) // позже добавим
+	r.POST("/login", func(c *gin.Context) {
+		// Пример: авторизация по userID
+		userID := c.PostForm("user_id")
+		token, err := auth.GenerateToken(userID)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "token generation failed"})
+			return
+		}
+		c.JSON(200, gin.H{"token": token})
+	})
 
 	// Защищённые маршруты
-	auth := r.Group("/", authMiddleware)
+	authGroup := r.Group("/api")
+	authGroup.Use(middleware.JWTAuth(cfg))
+	authGroup.GET("/profile", func(c *gin.Context) {
+		userID := c.GetString("user_id")
+		c.JSON(200, gin.H{"user_id": userID})
+	})
+	auth := r.Group("/", middleware.AuthMiddleware())
 	{
 		auth.POST("/devices", deviceHandler.Create)
 		auth.GET("/devices", deviceHandler.List)

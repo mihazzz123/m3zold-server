@@ -5,38 +5,24 @@ import (
 	"net/http"
 
 	"github.com/mihazzz123/m3zold-server/internal/constants"
-	"github.com/mihazzz123/m3zold-server/internal/usecase/user"
+	"github.com/mihazzz123/m3zold-server/internal/domain/user"
+	useruc "github.com/mihazzz123/m3zold-server/internal/usecase/user"
 
 	"github.com/gin-gonic/gin"
 )
 
 type UserHandler struct {
-	RegisterUC *user.RegisterUseCase
+	RegisterUC *useruc.RegisterUseCase
 }
 
-func NewUserHandler(registerUC *user.RegisterUseCase) *UserHandler {
+func NewUserHandler(registerUC *useruc.RegisterUseCase) *UserHandler {
 	return &UserHandler{RegisterUC: registerUC}
 }
 
 func (h *UserHandler) Register(c *gin.Context) {
-	// Ограничение частоты запросов (реализуйте отдельно)
-	// if err := h.rateLimiter.Check(r); err != nil {
-	// http.Error(w, "Too many requests", http.StatusTooManyRequests)
-	// return
-	// }
-
-	var req RegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Валидация
-	if errors := req.Validate(); len(errors) > 0 {
-		respondWithJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"success": false,
-			"errors":  errors,
-		})
+	var req user.RegisterRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
 		return
 	}
 

@@ -1,11 +1,12 @@
 package container
 
 import (
+	"github.com/mihazzz123/m3zold-server/internal/config"
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http"
-	database "github.com/mihazzz123/m3zold-server/internal/infrastructure"
+	"github.com/mihazzz123/m3zold-server/internal/infrastructure/auth"
 	"github.com/mihazzz123/m3zold-server/internal/infrastructure/postgres"
-	"github.com/mihazzz123/m3zold-server/internal/usecase"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/device"
+	"github.com/mihazzz123/m3zold-server/internal/usecase/health"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/user"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,19 +14,30 @@ import (
 
 type Container struct {
 	// Health
-	HealthChecker *database.HealthChecker
-	HealthUseCase *usecase.HealthUseCase
-	HealthHandler *http.HealthHandler
+	HealthHandler           *http.HealthHandler
+	TestDBConnectionHandler *http.TestDBConnectionHandler
+
+	AuthService *http.AuthService
 
 	UserHandler   *http.UserHandler
 	DeviceHandler *http.DeviceHandler
 }
 
-func New(db *pgxpool.Pool) *Container {
+func New(db *pgxpool.Pool, cfg *config.Config) *Container {
 	// Health dependencies
-	healthChecker := database.NewHealthChecker(db)
-	healthUseCase := usecase.NewHealthUseCase(healthChecker)
-	healthHandler := http.NewHealthHandler(healthUseCase)
+	repoHealth := postgres.NewRepoHealth(db)
+	checkUC := health.NewCheckUseCase(repoHealth)
+	checkTablesUC := health.NewCheckTablesUseCase(repoHealth)
+	getDatabaseInfoUC := health.NewGetDatabaseInfoUseCase(repoHealth)
+	monitorDDUC := health.NewMonitorDBUseCase(repoHealth)
+	testDBConnectionUC := health.NewTestDBConnectionUseCase(repoHealth)
+	testDBConnectionHandler := http.NewTestDBConnectionHandler(testDBConnectionUC)
+
+	healthHandler := http.NewHealthHandler(checkUC, checkTablesUC, getDatabaseInfoUC, monitorDDUC, testDBConnectionUC)
+
+	// Auth dependencies
+	jwtService := auth.NewAuthService(cfg.Auth.JWTSecret)
+	authUseCase := auth.NewAuthUseCase(jwtService)
 
 	// Repositories
 	userRepo := postgres.NewUserRepo(db)
@@ -45,10 +57,10 @@ func New(db *pgxpool.Pool) *Container {
 	deviceHandler := http.NewDeviceHandler(createDeviceUC, listDeviceUC, findUseCase, updateStatusUseCase, deleteUseCase)
 
 	return &Container{
-		UserHandler:   userHandler,
-		DeviceHandler: deviceHandler,
-		HealthChecker: healthChecker,
-		HealthUseCase: healthUseCase,
-		HealthHandler: healthHandler,
+		HealthHandler:           healthHandler,
+		AuthService:             jwtService,
+		TestDBConnectionHandler: testDBConnectionHandler,
+		UserHandler:             userHandler,
+		DeviceHandler:           deviceHandler,
 	}
 }

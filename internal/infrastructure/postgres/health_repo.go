@@ -1,4 +1,4 @@
-package database
+package postgres
 
 import (
 	"context"
@@ -6,18 +6,45 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mihazzz123/m3zold-server/internal/domain/health"
+	"github.com/sirupsen/logrus"
 )
 
-type HealthChecker struct {
+type repoHealth struct {
 	pool *pgxpool.Pool
 }
 
-func NewHealthChecker(pool *pgxpool.Pool) *HealthChecker {
-	return &HealthChecker{pool: pool}
+func NewRepoHealth(pool *pgxpool.Pool) *repoHealth {
+	return &repoHealth{pool: pool}
+}
+
+func (h *repoHealth) Check(ctx context.Context) health.HealthStatus {
+	response := health.HealthStatus{
+		Status:    "ok",
+		Timestamp: time.Now().UTC(),
+		Service:   "m3zold-server",
+		Database:  "healthy",
+	}
+
+	// Проверяем подключение к БД
+	if err := h.TestDBConnection(ctx); err != nil {
+		response.Status = "degraded"
+		response.Database = "unhealthy"
+		response.Error = err.Error()
+		return response
+	}
+
+	// Получаем дополнительную информацию о БД
+	dbInfo, err := h.GetDatabaseInfo(ctx)
+	if err == nil {
+		response.DatabaseInfo = dbInfo
+	}
+
+	return response
 }
 
 // TestConnection проверяет подключение к базе данных
-func (h *HealthChecker) TestConnection(ctx context.Context) error {
+func (h *repoHealth) TestDBConnection(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -39,7 +66,7 @@ func (h *HealthChecker) TestConnection(ctx context.Context) error {
 }
 
 // CheckTables проверяет существование необходимых таблиц
-func (h *HealthChecker) CheckTables(ctx context.Context, requiredTables []string) error {
+func (h *repoHealth) CheckTables(ctx context.Context, requiredTables []string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -65,7 +92,7 @@ func (h *HealthChecker) CheckTables(ctx context.Context, requiredTables []string
 }
 
 // GetDatabaseInfo возвращает информацию о БД
-func (h *HealthChecker) GetDatabaseInfo(ctx context.Context) (map[string]interface{}, error) {
+func (h *repoHealth) GetDatabaseInfo(ctx context.Context) (map[string]interface{}, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -93,4 +120,22 @@ func (h *HealthChecker) GetDatabaseInfo(ctx context.Context) (map[string]interfa
 	info["pool_idle_connections"] = stats.IdleConns()
 
 	return info, nil
+}
+
+// MonitorDB фоновая проверка здоровья БД
+func (h *repoHealth) MonitorDB(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := h.TestDBConnection(ctx)
+		cancel()
+
+		if err != nil {
+			logrus.Printf("⚠️ Database health check failed: %v", err)
+		} else {
+			logrus.Println("✅ Database health check passed")
+		}
+	}
 }

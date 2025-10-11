@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mihazzz123/m3zold-server/internal/constants"
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
+	"github.com/sirupsen/logrus"
 )
 
 type RegisterUseCase struct {
@@ -15,31 +15,24 @@ type RegisterUseCase struct {
 	// EmailSender EmailSender
 }
 
-// RegisterRequest содержит данные для регистрации пользователя
-type RegisterRequest struct {
-	Email           string `json:"email"`
-	Password        string `json:"password"`
-	ConfirmPassword string `json:"confirm_password"`
-	UserName        string `json:"user_name"`
-}
-
 func NewRegisterUseCase(repo user.Repository) *RegisterUseCase {
 	return &RegisterUseCase{Repo: repo}
 }
 
 // Execute выполняет регистрацию пользователя
-func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (*user.User, error) {
+func (uc *RegisterUseCase) Execute(ctx context.Context, req *user.RegisterRequest) (*user.User, error) {
 	// Валидация входных данных
-	if errors := input.Validate(); len(errors) > 0 {
-		return fmt.Errorf("validation failed: %v", errors)
+	if errors := Validate(req); len(errors) > 0 {
+		logrus.Errorf("validation errors: %v", errors)
+		return nil, fmt.Errorf("validation failed: %v", errors)
 	}
 
-	exists, err := uc.Repo.ExistsByEmail(ctx, input.Email)
+	exists, err := uc.Repo.ExistsByEmail(ctx, req.Email)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if exists {
-		return constants.ErrEmailTaken
+		return nil, user.ErrEmailTaken
 	}
 
 	// Хеширование пароля

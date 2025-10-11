@@ -1,26 +1,32 @@
+version: '3.8'
+
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    image: m3zold-server
+    image: ${APP_IMAGE:-m3zold-server}
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:${APP_PORT:-8080}"
     depends_on:
       - db
+    env_file:
+      - .env
     environment:
-      - DB_URL=postgres://m3zold-server:m3zold-server@db:5432/m3zold-server
+      DB_URL: ${DB_URL}
     restart: always
 
   db:
     image: postgres:15
+    restart: always
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: m3zold-server
-      POSTGRES_USER: m3zold-server
-      POSTGRES_PASSWORD: m3zold-server
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    restart: always
 
 volumes:
   pgdata:

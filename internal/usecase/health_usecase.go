@@ -49,3 +49,8 @@ func (uc *HealthUseCase) CheckHealth(ctx context.Context) HealthStatus {
 
 	return response
 }
+
+// MonitorDB мониторит состояние БД
+func (uc *HealthUseCase) MonitorDB(ctx context.Context) error {
+	return uc.healthRepo.PingDatabase(ctx)
+}

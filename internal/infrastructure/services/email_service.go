@@ -1,4 +1,4 @@
-package infrastructure_services
+package services
 
 import (
 	"fmt"
@@ -8,16 +8,18 @@ import (
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
 )
 
+// EmailService реализация EmailValidator
 type EmailService struct {
 	emailRegex *regexp.Regexp
 }
 
+// NewEmailService создает новый EmailService
 func NewEmailService() *EmailService {
-	// Простая валидация email, можно использовать более сложную
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	return &EmailService{emailRegex: emailRegex}
 }
 
+// Validate валидирует email
 func (s *EmailService) Validate(email string) error {
 	email = strings.TrimSpace(email)
 
@@ -36,6 +38,7 @@ func (s *EmailService) Validate(email string) error {
 	return nil
 }
 
+// Normalize нормализует email
 func (s *EmailService) Normalize(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }

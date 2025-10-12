@@ -1,16 +1,12 @@
-package userusecase
+package user
 
-import (
-	"github.com/mihazzz123/m3zold-server/internal/domain/user"
-)
+// type LoginUseCase struct {
+// 	Repo user.Repository
+// }
 
-type LoginUseCase struct {
-	Repo user.Repository
-}
-
-func NewLoginUseCase(repo user.Repository) *RegisterUseCase {
-	return &RegisterUseCase{Repo: repo}
-}
+// func NewLoginUseCase(repo user.Repository) *RegisterUseCase {
+// 	return &RegisterUseCase{Repo: repo}
+// }
 
 // func (uc *LoginUseCase) generateSecureToken(length int) (string, error) {
 // 	bytes := make([]byte, length)

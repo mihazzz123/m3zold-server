@@ -68,7 +68,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (
 
 	// Создание пользователя
 	newUser := &user.User{
-		ID:           uuid.New(),
+		ID:           uuid.New().String(),
 		Email:        email,
 		UserName:     input.UserName,
 		PasswordHash: passwordHash,
@@ -85,9 +85,14 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
+	userID, err := uuid.Parse(newUser.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse user ID: %w", err)
+	}
+
 	// Возвращаем ответ без чувствительных данных
 	return &RegisterResponse{
-		ID:        newUser.ID,
+		ID:        userID,
 		Email:     newUser.Email,
 		UserName:  newUser.UserName,
 		FirstName: newUser.FirstName,

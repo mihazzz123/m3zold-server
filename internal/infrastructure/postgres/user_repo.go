@@ -2,46 +2,44 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/mihazzz123/m3zold-server/internal/domain/user"
-	"github.com/sirupsen/logrus"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mihazzz123/m3zold-server/internal/domain/user"
 )
 
-type userRepo struct {
-	DB *pgxpool.Pool
+// UserRepository реализация репозитория пользователей для PostgreSQL
+type UserRepository struct {
+	db *pgxpool.Pool
 }
 
-func NewUserRepo(db *pgxpool.Pool) *userRepo {
-	return &userRepo{DB: db}
+// NewUserRepository создает новый экземпляр UserRepository
+func NewUserRepo(db *pgxpool.Pool) *UserRepository {
+	return &UserRepository{db: db}
 }
 
 // Create создает нового пользователя
-func (r *userRepo) Create(ctx context.Context, user *user.User) error {
+func (r *UserRepository) Create(ctx context.Context, user *user.User) error {
 	query := `
-        INSERT INTO m3zold_schema.users (
-            id,
-            email,
-            user_name,
-            password_hash,
-            first_name,
-            last_name,
-            is_active,
-            created_at,
-            updated_at,
-            deleted_at,
-			is_verified
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    `
+		INSERT INTO m3zold_schema.users (
+			id, email, user_name, password_hash, 
+			first_name, last_name, is_active, 
+			created_at, updated_at, deleted_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`
 
-	_, err := r.DB.Exec(ctx, query,
-		user.ID,
+	// Конвертируем string ID в UUID для БД
+	userID, err := uuid.Parse(user.ID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query,
+		userID,
 		user.Email,
 		user.UserName,
 		user.PasswordHash,
@@ -51,59 +49,68 @@ func (r *userRepo) Create(ctx context.Context, user *user.User) error {
 		user.CreatedAt,
 		user.UpdatedAt,
 		user.DeletedAt,
-		user.IsVerified,
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
+		return fmt.Errorf("failed to create user: %v", err)
 	}
 
 	return nil
 }
 
 // ExistsByEmail проверяет существование пользователя по email
-func (r *userRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM m3zold_schema.users WHERE email = $1)`
 	var exists bool
-	err := r.DB.QueryRow(ctx, query, email).Scan(&exists)
+	err := r.db.QueryRow(ctx, query, email).Scan(&exists)
 	if err != nil {
-		return false, fmt.Errorf("failed to check email existence: %w", err)
+		return false, fmt.Errorf("failed to check email existence: %v", err)
 	}
-
 	return exists, nil
 }
 
 // GetByEmail возвращает пользователя по email
-func (r *userRepo) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
 	query := `
-		SELECT id, email, user_name, password_hash, first_name, last_name, is_active, created_at, updated_at, deleted_at, is_verified
-		FROM m3zold_schema.users WHERE email = $1
+		SELECT id, email, user_name, password_hash, first_name, last_name, 
+			   is_active, created_at, updated_at, deleted_at
+		FROM m3zold_schema.users 
+		WHERE email = $1 AND deleted_at IS NULL
 	`
 
-	var u user.User
-	err := r.DB.QueryRow(ctx, query, email).Scan(
-		&u.ID,
-		&u.Email,
-		&u.PasswordHash,
-		&u.CreatedAt,
-		&u.UpdatedAt,
-		&u.IsActive,
-		&u.IsVerified,
+	var (
+		dbID   uuid.UUID
+		dbUser user.User
 	)
 
-	if err == sql.ErrNoRows {
-		return nil, user.ErrUserNotFound
-	}
+	err := r.db.QueryRow(ctx, query, email).Scan(
+		&dbID,
+		&dbUser.Email,
+		&dbUser.UserName,
+		&dbUser.PasswordHash,
+		&dbUser.FirstName,
+		&dbUser.LastName,
+		&dbUser.IsActive,
+		&dbUser.CreatedAt,
+		&dbUser.UpdatedAt,
+		&dbUser.DeletedAt,
+	)
+
 	if err != nil {
-		logrus.Errorf("failed to get user by email: %s", err)
+		if err == pgx.ErrNoRows {
+			return nil, user.ErrUserNotFound
+		}
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
-	return &u, nil
+	// Конвертируем UUID обратно в string
+	dbUser.ID = dbID.String()
+
+	return &dbUser, nil
 }
 
 // GetByID возвращает пользователя по ID
-func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, error) {
 	query := `
 		SELECT id, email, user_name, password_hash, first_name, last_name, 
 			   is_active, created_at, updated_at, deleted_at
@@ -111,10 +118,18 @@ func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	var dbUser user.User
+	userID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
 
-	err := r.DB.QueryRow(ctx, query, id).Scan(
-		&dbUser.ID,
+	var (
+		dbID   uuid.UUID
+		dbUser user.User
+	)
+
+	err = r.db.QueryRow(ctx, query, userID).Scan(
+		&dbID,
 		&dbUser.Email,
 		&dbUser.UserName,
 		&dbUser.PasswordHash,
@@ -133,11 +148,13 @@ func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error
 		return nil, fmt.Errorf("failed to get user by ID: %w", err)
 	}
 
+	dbUser.ID = dbID.String()
+
 	return &dbUser, nil
 }
 
 // Update обновляет данные пользователя
-func (r *userRepo) Update(ctx context.Context, user *user.User) error {
+func (r *UserRepository) Update(ctx context.Context, user *user.User) error {
 	query := `
 		UPDATE m3zold_schema.users 
 		SET email = $2, user_name = $3, first_name = $4, last_name = $5,
@@ -145,8 +162,13 @@ func (r *userRepo) Update(ctx context.Context, user *user.User) error {
 		WHERE id = $1
 	`
 
-	_, err := r.DB.Exec(ctx, query,
-		user.ID,
+	userID, err := uuid.Parse(user.ID)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query,
+		userID,
 		user.Email,
 		user.UserName,
 		user.FirstName,
@@ -164,14 +186,19 @@ func (r *userRepo) Update(ctx context.Context, user *user.User) error {
 }
 
 // Delete помечает пользователя как удаленного
-func (r *userRepo) Delete(ctx context.Context, id uuid.UUID) error {
+func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	query := `
 		UPDATE m3zold_schema.users 
 		SET deleted_at = NOW() 
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	result, err := r.DB.Exec(ctx, query, id)
+	userID, err := uuid.Parse(id)
+	if err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	result, err := r.db.Exec(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}

@@ -3,7 +3,6 @@ package container
 import (
 	"github.com/mihazzz123/m3zold-server/internal/config"
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http"
-	"github.com/mihazzz123/m3zold-server/internal/infrastructure"
 	"github.com/mihazzz123/m3zold-server/internal/infrastructure/postgres"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/device"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/health"
@@ -22,8 +21,6 @@ type Container struct {
 
 	UserHandler   *http.UserHandler
 	DeviceHandler *http.DeviceHandler
-
-	AuthService *infrastructure.AuthService
 }
 
 func New(db *pgxpool.Pool, cfg *config.Config) *Container {
@@ -37,9 +34,6 @@ func New(db *pgxpool.Pool, cfg *config.Config) *Container {
 	testDBConnectionHandler := http.NewTestDBConnectionHandler(testDBConnectionUC)
 
 	healthHandler := http.NewHealthHandler(checkUC, checkTablesUC, getDatabaseInfoUC, monitorDDUC, testDBConnectionUC)
-
-	// Auth dependencies
-	authService := infrastructure.NewAuthService()
 
 	// Repositories
 	userRepo := postgres.NewUserRepo(db)
@@ -63,6 +57,5 @@ func New(db *pgxpool.Pool, cfg *config.Config) *Container {
 		TestDBConnectionHandler: testDBConnectionHandler,
 		UserHandler:             userHandler,
 		DeviceHandler:           deviceHandler,
-		AuthService:             authService,
 	}
 }

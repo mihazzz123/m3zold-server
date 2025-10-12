@@ -1,19 +1,65 @@
 package user
 
-import (
-	"time"
-)
+import "time"
 
 type User struct {
-	ID           string     `json:"id" db:"id"`
-	Email        string     `json:"email" db:"email"`
-	PasswordHash string     `json:"-" db:"password_hash"`
-	UserName     string     `json:"user_name" db:"user_name"`
-	FirstName    string     `json:"first_name" db:"first_name"`
-	LastName     string     `json:"last_name" db:"last_name"`
-	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
-	DeletedAt    *time.Time `json:"deleted_at" db:"deleted_at"`
-	IsActive     bool       `json:"is_active" db:"is_active"`
-	IsVerified   bool       `json:"is_verified" db:"is_verified"`
+	ID           string
+	Email        string
+	UserName     string
+	PasswordHash string
+	FirstName    string
+	LastName     string
+	IsActive     bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    *time.Time
+}
+
+// NewUser создает нового пользователя (фабричный метод)
+func NewUser(id, email, userName, passwordHash, firstName, lastName string) *User {
+	now := time.Now()
+	return &User{
+		ID:           id,
+		Email:        email,
+		UserName:     userName,
+		PasswordHash: passwordHash,
+		FirstName:    firstName,
+		LastName:     lastName,
+		IsActive:     true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		DeletedAt:    nil,
+	}
+}
+
+// Activate активирует пользователя
+func (u *User) Activate() {
+	u.IsActive = true
+	u.UpdatedAt = time.Now()
+}
+
+// Deactivate деактивирует пользователя
+func (u *User) Deactivate() {
+	u.IsActive = false
+	u.UpdatedAt = time.Now()
+}
+
+// Delete помечает пользователя как удаленного
+func (u *User) Delete() {
+	now := time.Now()
+	u.DeletedAt = &now
+	u.UpdatedAt = now
+}
+
+// UpdateProfile обновляет профиль пользователя
+func (u *User) UpdateProfile(firstName, lastName string) {
+	u.FirstName = firstName
+	u.LastName = lastName
+	u.UpdatedAt = time.Now()
+}
+
+// ChangeEmail изменяет email пользователя
+func (u *User) ChangeEmail(email string) {
+	u.Email = email
+	u.UpdatedAt = time.Now()
 }

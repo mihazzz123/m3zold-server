@@ -1,4 +1,4 @@
-package user
+package userusecase
 
 import (
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"

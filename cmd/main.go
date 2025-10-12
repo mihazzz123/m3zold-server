@@ -55,7 +55,6 @@ func main() {
 		c.UserHandler,
 		c.DeviceHandler,
 		c.HealthHandler,
-		c.AuthService,
 	)
 
 	serverAddr := fmt.Sprintf(":%d", cfg.App.Port)

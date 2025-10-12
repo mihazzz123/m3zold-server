@@ -23,7 +23,6 @@ func NewRouter(
 	userHandler *UserHandler,
 	deviceHandler *DeviceHandler,
 	healthHandler *HealthHandler,
-	authSrv *infrastructure.AuthService,
 ) *gin.Engine {
 	rateLimiter := middleware.NewRateLimiter()
 	r := gin.Default()
@@ -41,21 +40,7 @@ func NewRouter(
 
 	// Авторизация
 	r.POST("/auth/register", userHandler.Register)
-	r.POST("/login", func(c *gin.Context) {
-		// Пример: авторизация по userID
-		userID := c.PostForm("user_id")
-		userUIID, err := uuid.Parse(userID)
-		if err != nil {
-			c.JSON(400, gin.H{"error": "invalid user_id"})
-			return
-		}
-		token, err := authSrv.GenerateToken(cfg, userUIID)
-		if err != nil {
-			c.JSON(500, gin.H{"error": "token generation failed"})
-			return
-		}
-		c.JSON(200, gin.H{"token": token})
-	})
+	r.POST("/login", userHandler.Login)
 
 	// Защищённые маршруты
 	auth := r.Group("/", middleware.Auth(cfg))

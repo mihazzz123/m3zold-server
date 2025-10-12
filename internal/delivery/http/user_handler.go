@@ -4,17 +4,21 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
+	"github.com/mihazzz123/m3zold-server/internal/infrastructure"
 	userUS "github.com/mihazzz123/m3zold-server/internal/usecase/user"
 )
 
 type UserHandler struct {
 	RegisterUC *userUS.RegisterUseCase
+	AuthSrv    *infrastructure.AuthService
 }
 
-func NewUserHandler(registerUseCase *userUS.RegisterUseCase) *UserHandler {
+func NewUserHandler(registerUseCase *userUS.RegisterUseCase, authSrv *infrastructure.AuthService) *UserHandler {
 	return &UserHandler{
 		RegisterUC: registerUseCase,
+		AuthSrv:    authSrv,
 	}
 }
 
@@ -48,4 +52,20 @@ func (h *UserHandler) Register(c *gin.Context) {
 		"message": "Registration successful",
 		"user":    response,
 	})
+}
+
+func (h *UserHandler) Login(c *gin.Context) {
+	// Пример: авторизация по userID
+	userID := c.PostForm("user_id")
+	userUIID, err := uuid.Parse(userID)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "invalid user_id"})
+		return
+	}
+	token, err := h.AuthSrv.GenerateToken(cfg, userUIID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "token generation failed"})
+		return
+	}
+	c.JSON(200, gin.H{"token": token})
 }

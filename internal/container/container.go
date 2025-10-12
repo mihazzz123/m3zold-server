@@ -8,11 +8,14 @@ import (
 	"github.com/mihazzz123/m3zold-server/internal/usecase/device"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/health"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/user"
+	"github.com/sirupsen/logrus"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Container struct {
+	Config *config.Config
+	Logger *logrus.Logger
 	// Health
 	HealthHandler           *http.HealthHandler
 	TestDBConnectionHandler *http.TestDBConnectionHandler

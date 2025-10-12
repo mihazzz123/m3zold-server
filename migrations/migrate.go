@@ -11,11 +11,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 // Migrate выполняет миграции из SQL файлов
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
-	log.Println("🔄 Starting database migrations...")
+	logrus.Info("🔄 Starting database migrations...")
 
 	// Проверяем существование папки migrations
 	migrationsPath := "./migrations"
@@ -30,7 +31,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	if len(files) == 0 {
-		log.Println("⚠️  No migration files found")
+		logrus.Info("⚠️  No migration files found")
 		return nil
 	}
 
@@ -39,9 +40,9 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 
 	// В development среде очищаем старые миграции
 	if os.Getenv("APP_ENV") == "development" {
-		log.Println("🧹 Development environment - clearing old migrations...")
+		logrus.Info("🧹 Development environment - clearing old migrations...")
 		if err := clearMigrations(ctx, pool); err != nil {
-			log.Printf("⚠️  Failed to clear old migrations: %v", err)
+			logrus.Infof("⚠️  Failed to clear old migrations: %v", err)
 		}
 	}
 
@@ -51,15 +52,16 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		// Проверяем, была ли уже выполнена эта миграция
 		alreadyExecuted, err := isMigrationExecuted(ctx, pool, migrationName)
 		if err != nil {
+			logrus.Errorf("failed to check migration status: %s", err)
 			return fmt.Errorf("failed to check migration status: %w", err)
 		}
 
 		if alreadyExecuted {
-			log.Printf("⏭️  Migration already executed: %s", migrationName)
+			logrus.Infof("⏭️  Migration already executed: %s", migrationName)
 			continue
 		}
 
-		log.Printf("📁 Processing migration: %s", migrationName)
+		logrus.Infof("📁 Processing migration: %s", migrationName)
 
 		// Читаем содержимое файла
 		content, err := os.ReadFile(file)
@@ -97,7 +99,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 			return fmt.Errorf("failed to commit transaction for %s: %w", file, err)
 		}
 
-		log.Printf("✅ Migration %d/%d completed: %s", i+1, len(files), migrationName)
+		logrus.Infof("✅ Migration %d/%d completed: %s", i+1, len(files), migrationName)
 	}
 
 	log.Println("✅ All migrations completed successfully")
@@ -121,7 +123,7 @@ func clearMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 				return fmt.Errorf("failed to drop table %s: %w", table, err)
 			}
 		}
-		log.Printf("🗑️  Dropped table: %s", table)
+		logrus.Infof("🗑️  Dropped table: %s", table)
 	}
 
 	// Также удаляем схему если нужно

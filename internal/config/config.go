@@ -65,13 +65,26 @@ func New() *Config {
 
 	dbPort, _ := strconv.Atoi(getEnv("DB_PORT", "5432"))
 	maxOpen, _ := strconv.Atoi(getEnv("DB_MAX_OPEN_CONNS", "10"))
-	maxIdle, _ := strconv.Atoi(getEnv("DB_MAX_IDLE_CONNS", "10"))
+	maxIdle, _ := strconv.Atoi(getEnv("DB_MAX_IDLE_CONNS", "5"))
 
-	checkConnect, _ := time.ParseDuration(getEnv("DB_CHEK_CONNECTION", "5"))
+	checkConnect, _ := time.ParseDuration(getEnv("DB_CHECK_CONNECTION", "5m"))
 	readTimeout, _ := time.ParseDuration(getEnv("HTTP_READ_TIMEOUT", "5s"))
 	writeTimeout, _ := time.ParseDuration(getEnv("HTTP_WRITE_TIMEOUT", "10s"))
 	idleTimeout, _ := time.ParseDuration(getEnv("HTTP_IDLE_TIMEOUT", "120s"))
 	tokenTTL, _ := time.ParseDuration(getEnv("TOKEN_TTL", "15m"))
+
+	// Формируем DB_URL если он не указан
+	dbURL := getEnv("DB_URL", "")
+	if dbURL == "" {
+		dbURL = buildDBURL(
+			getEnv("DB_HOST", "localhost"),
+			strconv.Itoa(dbPort),
+			getEnv("DB_USER", ""),
+			getEnv("DB_PASSWORD", ""),
+			getEnv("DB_NAME", ""),
+			getEnv("DB_SSLMODE", "disable"),
+		)
+	}
 
 	return &Config{
 		App: AppConfig{
@@ -86,6 +99,7 @@ func New() *Config {
 			IdleTimeout:  idleTimeout,
 		},
 		Database: DBConfig{
+			Url:             dbURL,
 			Driver:          getEnv("DB_DRIVER", "postgres"),
 			Host:            getEnv("DB_HOST", "localhost"),
 			Port:            dbPort,
@@ -107,6 +121,11 @@ func New() *Config {
 			TokenTTL:  tokenTTL,
 		},
 	}
+}
+
+// buildDBURL строит DSN строку для PostgreSQL
+func buildDBURL(host, port, user, password, dbname, sslmode string) string {
+	return "postgres://" + user + ":" + password + "@" + host + ":" + port + "/" + dbname + "?sslmode=" + sslmode
 }
 
 func getEnv(key, defaultVal string) string {

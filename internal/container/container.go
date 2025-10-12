@@ -3,7 +3,7 @@ package container
 import (
 	"github.com/mihazzz123/m3zold-server/internal/config"
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http"
-	"github.com/mihazzz123/m3zold-server/internal/infrastructure/auth"
+	"github.com/mihazzz123/m3zold-server/internal/infrastructure"
 	"github.com/mihazzz123/m3zold-server/internal/infrastructure/postgres"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/device"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/health"
@@ -17,10 +17,10 @@ type Container struct {
 	HealthHandler           *http.HealthHandler
 	TestDBConnectionHandler *http.TestDBConnectionHandler
 
-	AuthService *http.AuthService
-
 	UserHandler   *http.UserHandler
 	DeviceHandler *http.DeviceHandler
+
+	AuthService *infrastructure.AuthService
 }
 
 func New(db *pgxpool.Pool, cfg *config.Config) *Container {
@@ -36,15 +36,17 @@ func New(db *pgxpool.Pool, cfg *config.Config) *Container {
 	healthHandler := http.NewHealthHandler(checkUC, checkTablesUC, getDatabaseInfoUC, monitorDDUC, testDBConnectionUC)
 
 	// Auth dependencies
-	jwtService := auth.NewAuthService(cfg.Auth.JWTSecret)
-	authUseCase := auth.NewAuthUseCase(jwtService)
+	authService := infrastructure.NewAuthService()
+
+	// Password Service
+	passwordService := infrastructure.NewPasswordService()
 
 	// Repositories
 	userRepo := postgres.NewUserRepo(db)
 	deviceRepo := postgres.NewDeviceRepo(db)
 
 	// User UseCases
-	registerUC := user.NewRegisterUseCase(userRepo)
+	registerUC := user.NewRegisterUseCase(userRepo, *passwordService)
 	// Device UseCases
 	createDeviceUC := device.NewCreateUseCase(deviceRepo)
 	deleteUseCase := device.NewDeleteUseCase(deviceRepo)
@@ -58,9 +60,9 @@ func New(db *pgxpool.Pool, cfg *config.Config) *Container {
 
 	return &Container{
 		HealthHandler:           healthHandler,
-		AuthService:             jwtService,
 		TestDBConnectionHandler: testDBConnectionHandler,
 		UserHandler:             userHandler,
 		DeviceHandler:           deviceHandler,
+		AuthService:             authService,
 	}
 }

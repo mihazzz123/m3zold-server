@@ -2,37 +2,171 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Migrate выполняет миграции из SQL файлов
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
-	log.Println("🔄 Запуск миграций из файлов...")
+	log.Println("🔄 Starting database migrations...")
 
-	files, err := filepath.Glob(filepath.Join("./migrations", "*.sql"))
-	if err != nil {
-		return err
+	// Проверяем существование папки migrations
+	migrationsPath := "./migrations"
+	if _, err := os.Stat(migrationsPath); os.IsNotExist(err) {
+		return fmt.Errorf("migrations directory does not exist: %s", migrationsPath)
 	}
 
-	for _, file := range files {
+	// Получаем список SQL файлов
+	files, err := filepath.Glob(filepath.Join(migrationsPath, "*.sql"))
+	if err != nil {
+		return fmt.Errorf("failed to read migration files: %w", err)
+	}
+
+	if len(files) == 0 {
+		log.Println("⚠️  No migration files found")
+		return nil
+	}
+
+	// Сортируем файлы по имени для последовательного выполнения
+	sort.Strings(files)
+
+	// В development среде очищаем старые миграции
+	if os.Getenv("APP_ENV") == "development" {
+		log.Println("🧹 Development environment - clearing old migrations...")
+		if err := clearMigrations(ctx, pool); err != nil {
+			log.Printf("⚠️  Failed to clear old migrations: %v", err)
+		}
+	}
+
+	for i, file := range files {
+		migrationName := filepath.Base(file)
+
+		// Проверяем, была ли уже выполнена эта миграция
+		alreadyExecuted, err := isMigrationExecuted(ctx, pool, migrationName)
+		if err != nil {
+			return fmt.Errorf("failed to check migration status: %w", err)
+		}
+
+		if alreadyExecuted {
+			log.Printf("⏭️  Migration already executed: %s", migrationName)
+			continue
+		}
+
+		log.Printf("📁 Processing migration: %s", migrationName)
+
+		// Читаем содержимое файла
 		content, err := os.ReadFile(file)
 		if err != nil {
-			log.Printf("❌ Ошибка чтения %s: %v\n", file, err)
-			return err
+			return fmt.Errorf("failed to read migration file %s: %w", file, err)
 		}
 
-		_, err = pool.Exec(context.Background(), string(content))
+		// Выполняем миграцию в транзакции
+		tx, err := pool.Begin(ctx)
 		if err != nil {
-			log.Printf("❌ Ошибка выполнения миграции %s: %v\n", file, err)
-			return err
+			return fmt.Errorf("failed to begin transaction for %s: %w", file, err)
 		}
 
-		log.Printf("✅ Миграция выполнена: %s\n", filepath.Base(file))
+		// Разделяем SQL на отдельные запросы
+		queries := splitSQL(string(content))
+		for j, query := range queries {
+			if strings.TrimSpace(query) == "" {
+				continue
+			}
+
+			// Выполняем каждый запрос отдельно
+			if _, err := tx.Exec(ctx, query); err != nil {
+				tx.Rollback(ctx)
+				return fmt.Errorf("failed to execute query %d in migration %s: %w\nQuery: %s", j+1, file, err, query)
+			}
+		}
+
+		// Отмечаем миграцию как выполненную
+		if err := markMigrationAsExecuted(ctx, tx, migrationName); err != nil {
+			tx.Rollback(ctx)
+			return fmt.Errorf("failed to mark migration as executed: %w", err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("failed to commit transaction for %s: %w", file, err)
+		}
+
+		log.Printf("✅ Migration %d/%d completed: %s", i+1, len(files), migrationName)
 	}
 
-	log.Println("✅ Все миграции завершены")
+	log.Println("✅ All migrations completed successfully")
 	return nil
+}
+
+// clearMigrations очищает таблицы (только для development)
+func clearMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	tables := []string{
+		"m3zold_schema.verification_tokens",
+		"m3zold_schema.devices",
+		"m3zold_schema.users",
+		"m3zold_schema.schema_migrations",
+	}
+
+	for _, table := range tables {
+		query := fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", table)
+		if _, err := pool.Exec(ctx, query); err != nil {
+			// Игнорируем ошибки "table does not exist"
+			if !strings.Contains(err.Error(), "does not exist") {
+				return fmt.Errorf("failed to drop table %s: %w", table, err)
+			}
+		}
+		log.Printf("🗑️  Dropped table: %s", table)
+	}
+
+	// Также удаляем схему если нужно
+	if _, err := pool.Exec(ctx, "DROP SCHEMA IF EXISTS m3zold_schema CASCADE"); err != nil {
+		if !strings.Contains(err.Error(), "does not exist") {
+			return fmt.Errorf("failed to drop schema: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// splitSQL разделяет SQL файл на отдельные запросы
+func splitSQL(sql string) []string {
+	queries := strings.Split(sql, ";")
+	var result []string
+
+	for _, query := range queries {
+		trimmed := strings.TrimSpace(query)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+
+	return result
+}
+
+// isMigrationExecuted проверяет, была ли миграция уже выполнена
+func isMigrationExecuted(ctx context.Context, pool *pgxpool.Pool, migrationName string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM m3zold_schema.schema_migrations WHERE name = $1)`
+	var exists bool
+	err := pool.QueryRow(ctx, query, migrationName).Scan(&exists)
+	if err != nil {
+		// Если таблицы schema_migrations еще нет, считаем что миграция не выполнена
+		if strings.Contains(err.Error(), "does not exist") {
+			return false, nil
+		}
+		return false, err
+	}
+	return exists, nil
+}
+
+// markMigrationAsExecuted отмечает миграцию как выполненную
+func markMigrationAsExecuted(ctx context.Context, tx pgx.Tx, migrationName string) error {
+	query := `INSERT INTO m3zold_schema.schema_migrations (name) VALUES ($1)`
+	_, err := tx.Exec(ctx, query, migrationName)
+	return err
 }

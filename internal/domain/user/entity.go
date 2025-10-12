@@ -17,10 +17,5 @@ type User struct {
 	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedDt    *time.Time `json:"deleted_at" db:"deleted_at"`
 	IsActive     bool       `json:"is_active" db:"is_active"`
-}
-
-type RegisterRequest struct {
-	Email           string `json:"email"`
-	Password        string `json:"password"`
-	ConfirmPassword string `json:"confirm_password"`
+	IsVerified   bool       `json:"is_verified" db:"is_verified"`
 }

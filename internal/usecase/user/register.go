@@ -3,82 +3,95 @@ package user
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
-	"github.com/sirupsen/logrus"
+	"github.com/mihazzz123/m3zold-server/internal/infrastructure"
 )
 
 type RegisterUseCase struct {
-	Repo user.Repository
-	// EmailSender EmailSender
+	Repo        user.Repository
+	PasswordSvc infrastructure.PasswordService
 }
 
-func NewRegisterUseCase(repo user.Repository) *RegisterUseCase {
-	return &RegisterUseCase{Repo: repo}
+func NewRegisterUseCase(repo user.Repository, passwordSvc infrastructure.PasswordService) *RegisterUseCase {
+	return &RegisterUseCase{Repo: repo, PasswordSvc: passwordSvc}
+}
+
+// RegisterRequest DTO для регистрации
+type RegisterRequest struct {
+	Email           string `json:"email"`
+	Password        string `json:"password"`
+	ConfirmPassword string `json:"confirm_password"`
+}
+
+// RegisterResponse DTO ответа
+type RegisterResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+	IsActive  bool      `json:"is_active"`
 }
 
 // Execute выполняет регистрацию пользователя
-func (uc *RegisterUseCase) Execute(ctx context.Context, req *user.RegisterRequest) (*user.User, error) {
+func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (*RegisterResponse, error) {
 	// Валидация входных данных
-	if errors := Validate(req); len(errors) > 0 {
-		logrus.Errorf("validation errors: %v", errors)
-		return nil, fmt.Errorf("validation failed: %v", errors)
+	if err := uc.validateInput(input); err != nil {
+		return nil, err
 	}
 
-	exists, err := uc.Repo.ExistsByEmail(ctx, req.Email)
+	// Нормализация email
+	email := strings.ToLower(strings.TrimSpace(input.Email))
+
+	// Проверка существования пользователя
+	exists, err := uc.Repo.ExistsByEmail(ctx, email)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("repository error: %w", err)
 	}
 	if exists {
 		return nil, user.ErrEmailTaken
 	}
 
 	// Хеширование пароля
-	passwordHash, err := hashPassword(input.Password)
+	passwordHash, err := uc.PasswordSvc.HashPassword(input.Password)
 	if err != nil {
-		return fmt.Errorf("failed to process password: %w", err)
+		return nil, fmt.Errorf("password processing error: %w", err)
 	}
 
 	// Создание пользователя
-	user := &user.User{
-		ID:           uuid.New().String(),
+	newUser := &user.User{
+		ID:           uuid.New(),
 		Email:        email,
 		PasswordHash: passwordHash,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
-		IsActive:     false, // Требуется верификация
+		IsActive:     true, // или false если требуется верификация
+		IsVerified:   false,
 	}
 
-	if err = uc.Repo.Create(ctx, user); err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
+	// Сохранение в репозиторий
+	if err = uc.Repo.Create(ctx, newUser); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Генерация токена верификации
-	verificationToken, err := generateVerificationToken()
-	if err != nil {
-		// Логируем ошибку, но не прерываем процесс
-		// Пользователь может запросить повторную отправку
-		fmt.Printf("Failed to generate verification token: %v\n", err)
-	} else {
-		// Отправка email с токеном (в реальном приложении)
-		go s.sendVerificationEmail(user.Email, verificationToken)
-	}
-
-	// Не возвращаем хеш пароля
-	user.PasswordHash = ""
-
-	return user, nil
+	// Возвращаем ответ без чувствительных данных
+	return &RegisterResponse{
+		ID:        newUser.ID,
+		Email:     newUser.Email,
+		CreatedAt: newUser.CreatedAt,
+		IsActive:  newUser.IsActive,
+	}, nil
 }
 
 // validateInput валидация входных данных
 func (uc *RegisterUseCase) validateInput(input RegisterRequest) error {
-	if err := uc.validateEmail(input.Email); err != nil {
+	if err := uc.PasswordSvc.ValidateEmail(input.Email); err != nil {
 		return err
 	}
 
-	if err := uc.validatePassword(input.Password); err != nil {
+	if err := uc.PasswordSvc.ValidatePassword(input.Password); err != nil {
 		return err
 	}
 

@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   api-debug:
     build:
@@ -5,17 +7,23 @@ services:
       dockerfile: Dockerfile.debug
     image: m3zold-server-debug
     ports:
-      - "8081:8080"
-      - "3333:2345"
+      - "8080:8080" # Изменено с 8081:8080 на 8080:8080 для consistency
+      - "2345:2345" # Изменено с 3333:2345 на стандартный порт 2345
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - DB_URL=postgres://m3zold-server:m3zold-server@db:5432/m3zold-server
+      - DB_URL=postgres://m3zold-server:m3zold-server@db:5432/m3zold-server?sslmode=disable
+      - APP_PORT=8080
+      - LOG_LEVEL=debug
+      - APP_ENV=development
     volumes:
       - .:/app
+      - ./migrations:/app/migrations # Добавлено для миграций
     working_dir: /app
     restart: unless-stopped
+    networks:
+      - app-network
 
   db:
     image: postgres:15
@@ -27,12 +35,21 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d # Для начальных скриптов если нужно
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U m3zold-server -d m3zold-server" ]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
     restart: unless-stopped
+    networks:
+      - app-network
 
 volumes:
   pgdata:
+
+
+networks:
+  app-network:
+    driver: bridge

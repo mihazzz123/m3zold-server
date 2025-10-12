@@ -1,4 +1,4 @@
-package user
+package infrastructure
 
 import (
 	"crypto/rand"

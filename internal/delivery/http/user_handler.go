@@ -1,74 +1,51 @@
 package http
 
 import (
-	"encoding/json"
 	"net/http"
 
-	"github.com/mihazzz123/m3zold-server/internal/constants"
-	"github.com/mihazzz123/m3zold-server/internal/domain/user"
-	useruc "github.com/mihazzz123/m3zold-server/internal/usecase/user"
-
 	"github.com/gin-gonic/gin"
+	"github.com/mihazzz123/m3zold-server/internal/domain/user"
+	userUS "github.com/mihazzz123/m3zold-server/internal/usecase/user"
 )
 
 type UserHandler struct {
-	RegisterUC *useruc.RegisterUseCase
+	RegisterUC *userUS.RegisterUseCase
 }
 
-func NewUserHandler(registerUC *useruc.RegisterUseCase) *UserHandler {
-	return &UserHandler{RegisterUC: registerUC}
+func NewUserHandler(registerUseCase *userUS.RegisterUseCase) *UserHandler {
+	return &UserHandler{
+		RegisterUC: registerUseCase,
+	}
 }
 
+// Register обработчик регистрации
 func (h *UserHandler) Register(c *gin.Context) {
-	var req user.RegisterRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+	var req userUS.RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request body",
+		})
 		return
 	}
 
-	/**
-
-		    user, err := h.authService.Register(r.Context(), &req)
-	    if err != nil {
-	        // Обобщённое сообщение об ошибке для безопасности
-	        status := http.StatusBadRequest
-	        if strings.Contains(err.Error(), "database error") {
-	            status = http.StatusInternalServerError
-	        }
-
-	        respondWithJSON(w, status, map[string]interface{}{
-	            "success": false,
-	            "message": "Registration failed",
-	        })
-	        return
-	    }
-
-	    respondWithJSON(w, http.StatusCreated, map[string]interface{}{
-	        "success": true,
-	        "message": "Registration successful. Please check your email for verification.",
-	        "user":    user,
-	    })
-	*/
-
-	newUser, err := h.RegisterUC.Execute(c.Request.Context(), input)
-	if err == constants.ErrEmailTaken {
-		c.JSON(http.StatusConflict, gin.H{"error": "Email уже зарегистрирован"})
-		return
-	}
+	response, err := h.RegisterUC.Execute(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка сервера"})
-		return
-	}
-	if newUser == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания нового пользователя"})
+		status := http.StatusBadRequest
+
+		switch err {
+		case user.ErrEmailTaken:
+			c.JSON(status, gin.H{"error": "Email already registered"})
+		case user.ErrInvalidEmail, user.ErrWeakPassword:
+			c.JSON(status, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		}
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Регистрация успешна"})
-}
-
-func respondWithJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Registration successful",
+		"user":    response,
+	})
 }

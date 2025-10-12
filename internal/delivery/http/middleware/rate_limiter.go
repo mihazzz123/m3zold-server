@@ -38,7 +38,7 @@ func (rl *RateLimiter) Middleware() gin.HandlerFunc {
 		}
 
 		// Максимум 5 попыток в час
-		if len(recentAttempts) >= 5 {
+		if len(recentAttempts) >= 100 {
 			c.AbortWithStatusJSON(429, gin.H{"error": "rate limit exceeded"})
 			return
 		}

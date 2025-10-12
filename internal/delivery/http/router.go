@@ -5,8 +5,10 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/mihazzz123/m3zold-server/internal/config"
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http/middleware"
+	"github.com/mihazzz123/m3zold-server/internal/infrastructure"
 )
 
 type Router struct {
@@ -21,6 +23,7 @@ func NewRouter(
 	userHandler *UserHandler,
 	deviceHandler *DeviceHandler,
 	healthHandler *HealthHandler,
+	authSrv *infrastructure.AuthService,
 ) *gin.Engine {
 	rateLimiter := middleware.NewRateLimiter()
 	r := gin.Default()
@@ -41,7 +44,12 @@ func NewRouter(
 	r.POST("/login", func(c *gin.Context) {
 		// Пример: авторизация по userID
 		userID := c.PostForm("user_id")
-		token, err := auth.GenerateToken(userID)
+		userUIID, err := uuid.Parse(userID)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "invalid user_id"})
+			return
+		}
+		token, err := authSrv.GenerateToken(cfg, userUIID)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "token generation failed"})
 			return
@@ -50,13 +58,7 @@ func NewRouter(
 	})
 
 	// Защищённые маршруты
-	authGroup := r.Group("/api")
-	authGroup.Use(middleware.JWTAuth(cfg))
-	authGroup.GET("/profile", func(c *gin.Context) {
-		userID := c.GetString("user_id")
-		c.JSON(200, gin.H{"user_id": userID})
-	})
-	auth := r.Group("/", middleware.AuthMiddleware())
+	auth := r.Group("/", middleware.Auth(cfg))
 	{
 		auth.POST("/devices", deviceHandler.Create)
 		auth.GET("/devices", deviceHandler.List)

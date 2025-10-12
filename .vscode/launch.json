@@ -7,7 +7,7 @@
             "request": "attach",
             "mode": "remote",
             "host": "127.0.0.1",
-            "port": 3333, // Use the local port mapped in docker-compose or directly exposed
+            "port": 2345, // Use the local port mapped in docker-compose or directly exposed
             "substitutePath": [
                 {
                     "from": "${workspaceFolder}",

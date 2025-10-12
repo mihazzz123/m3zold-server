@@ -41,15 +41,12 @@ func New(db *pgxpool.Pool, cfg *config.Config) *Container {
 	// Auth dependencies
 	authService := infrastructure.NewAuthService()
 
-	// Password Service
-	passwordService := infrastructure.NewPasswordService()
-
 	// Repositories
 	userRepo := postgres.NewUserRepo(db)
 	deviceRepo := postgres.NewDeviceRepo(db)
 
 	// User UseCases
-	registerUC := user.NewRegisterUseCase(userRepo, *passwordService)
+	registerUC := user.NewRegisterUseCase(userRepo)
 	// Device UseCases
 	createDeviceUC := device.NewCreateUseCase(deviceRepo)
 	deleteUseCase := device.NewDeleteUseCase(deviceRepo)

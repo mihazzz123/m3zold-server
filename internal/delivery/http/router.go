@@ -5,10 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/mihazzz123/m3zold-server/internal/config"
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http/middleware"
-	"github.com/mihazzz123/m3zold-server/internal/infrastructure"
 )
 
 type Router struct {
@@ -40,7 +38,7 @@ func NewRouter(
 
 	// Авторизация
 	r.POST("/auth/register", userHandler.Register)
-	r.POST("/login", userHandler.Login)
+	// r.POST("/login", userHandler.Login)
 
 	// Защищённые маршруты
 	auth := r.Group("/", middleware.Auth(cfg))

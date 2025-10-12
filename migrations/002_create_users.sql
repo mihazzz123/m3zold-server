@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS m3zold_schema.users (
     user_name TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     first_name TEXT,
-    second_name TEXT,
+    last_name TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT TRUE,

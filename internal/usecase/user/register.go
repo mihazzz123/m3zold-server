@@ -3,37 +3,42 @@ package user
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
-	"github.com/mihazzz123/m3zold-server/internal/infrastructure"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type RegisterUseCase struct {
-	Repo        user.Repository
-	PasswordSvc infrastructure.PasswordService
+	Repo user.Repository
 }
 
-func NewRegisterUseCase(repo user.Repository, passwordSvc infrastructure.PasswordService) *RegisterUseCase {
-	return &RegisterUseCase{Repo: repo, PasswordSvc: passwordSvc}
+func NewRegisterUseCase(repo user.Repository) *RegisterUseCase {
+	return &RegisterUseCase{Repo: repo}
 }
 
-// RegisterRequest DTO для регистрации
+// RegisterRequest DTO для запроса регистрации
 type RegisterRequest struct {
 	Email           string `json:"email"`
+	UserName        string `json:"user_name"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
-	UserName        string `json:"user_name"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
 }
 
-// RegisterResponse DTO ответа
+// RegisterResponse DTO для ответа регистрации
 type RegisterResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
+	UserName  string    `json:"user_name"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
 	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Execute выполняет регистрацию пользователя
@@ -56,7 +61,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (
 	}
 
 	// Хеширование пароля
-	passwordHash, err := uc.PasswordSvc.HashPassword(input.Password)
+	passwordHash, err := uc.hashPassword(input.Password)
 	if err != nil {
 		return nil, fmt.Errorf("password processing error: %w", err)
 	}
@@ -67,10 +72,12 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (
 		Email:        email,
 		UserName:     input.UserName,
 		PasswordHash: passwordHash,
+		FirstName:    input.FirstName,
+		LastName:     input.LastName,
+		IsActive:     true,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
-		IsActive:     true, // или false если требуется верификация
-		IsVerified:   false,
+		DeletedAt:    nil,
 	}
 
 	// Сохранение в репозиторий
@@ -82,18 +89,21 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (
 	return &RegisterResponse{
 		ID:        newUser.ID,
 		Email:     newUser.Email,
-		CreatedAt: newUser.CreatedAt,
+		UserName:  newUser.UserName,
+		FirstName: newUser.FirstName,
+		LastName:  newUser.LastName,
 		IsActive:  newUser.IsActive,
+		CreatedAt: newUser.CreatedAt,
 	}, nil
 }
 
 // validateInput валидация входных данных
 func (uc *RegisterUseCase) validateInput(input RegisterRequest) error {
-	if err := uc.PasswordSvc.ValidateEmail(input.Email); err != nil {
+	if err := uc.validateEmail(input.Email); err != nil {
 		return err
 	}
 
-	if err := uc.PasswordSvc.ValidatePassword(input.Password); err != nil {
+	if err := uc.validatePassword(input.Password); err != nil {
 		return err
 	}
 
@@ -101,5 +111,69 @@ func (uc *RegisterUseCase) validateInput(input RegisterRequest) error {
 		return fmt.Errorf("passwords do not match")
 	}
 
+	if strings.TrimSpace(input.UserName) == "" {
+		return fmt.Errorf("username is required")
+	}
+
 	return nil
+}
+
+// validateEmail валидирует email
+func (uc *RegisterUseCase) validateEmail(email string) error {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return user.ErrInvalidEmail
+	}
+
+	// Базовая проверка формата email
+	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+		return user.ErrInvalidEmail
+	}
+
+	return nil
+}
+
+func (uc *RegisterUseCase) validatePassword(password string) error {
+	if len(password) < 8 {
+		return user.ErrWeakPassword
+	}
+
+	if len(password) > 72 { // bcrypt limitation
+		return fmt.Errorf("password too long")
+	}
+
+	// Проверка сложности
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
+	hasSpecial := regexp.MustCompile(`[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]`).MatchString(password)
+
+	complexity := 0
+	if hasUpper {
+		complexity++
+	}
+	if hasLower {
+		complexity++
+	}
+	if hasNumber {
+		complexity++
+	}
+	if hasSpecial {
+		complexity++
+	}
+
+	if complexity < 3 {
+		return user.ErrWeakPassword
+	}
+
+	return nil
+}
+
+// hashPassword хеширует пароль
+func (uc *RegisterUseCase) hashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %w", err)
+	}
+	return string(hash), nil
 }

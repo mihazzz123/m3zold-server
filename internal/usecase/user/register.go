@@ -25,6 +25,7 @@ type RegisterRequest struct {
 	Email           string `json:"email"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
+	UserName        string `json:"user_name"`
 }
 
 // RegisterResponse DTO ответа
@@ -64,6 +65,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (
 	newUser := &user.User{
 		ID:           uuid.New(),
 		Email:        email,
+		UserName:     input.UserName,
 		PasswordHash: passwordHash,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),

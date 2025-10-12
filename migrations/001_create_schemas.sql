@@ -1,6 +1,9 @@
 -- Создание схемы
 CREATE SCHEMA IF NOT EXISTS m3zold_schema;
 
+-- Включение расширения для UUID
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- Создание таблицы для отслеживания выполненных миграций
 CREATE TABLE IF NOT EXISTS m3zold_schema.schema_migrations (
     id SERIAL PRIMARY KEY,

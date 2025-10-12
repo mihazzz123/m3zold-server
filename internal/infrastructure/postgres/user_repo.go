@@ -32,33 +32,33 @@ func (r *userRepo) ExistsByEmail(ctx context.Context, email string) (bool, error
 
 func (r *userRepo) Create(ctx context.Context, user *user.User) error {
 	query := `
-		INSERT INTO m3zold_schema.users (
-			id,
-			email,
-			password_hash,
-			user_name,
-			first_name,
-			second_name,
-			created_at,
-			updated_at,
-			deleted_at,
-			is_active,
-			is_verified		
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	`
+        INSERT INTO m3zold_schema.users (
+            id,
+            email,
+            user_name,
+            password_hash,
+            first_name,
+            second_name,
+            is_active,
+            created_at,
+            updated_at,
+            deleted_at,
+			is_verified
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `
 
 	_, err := r.DB.Exec(ctx, query,
 		user.ID,
 		user.Email,
-		user.PasswordHash,
 		user.UserName,
-		user.FirsName,
+		user.PasswordHash,
+		user.FirstName,
 		user.SecondName,
+		user.IsActive,
 		user.CreatedAt,
 		user.UpdatedAt,
-		user.DeletedDt,
-		user.IsActive,
+		user.DeletedAt,
 		user.IsVerified,
 	)
 
@@ -109,8 +109,8 @@ func (r *userRepo) Update(ctx context.Context, user *user.User) error {
 	_, err := r.DB.Exec(ctx, query,
 		user.Email,
 		user.PasswordHash, user.UserName,
-		user.FirsName, user.SecondName,
-		user.UpdatedAt, user.DeletedDt,
+		user.FirstName, user.SecondName,
+		user.UpdatedAt, user.DeletedAt,
 		user.IsActive, user.IsVerified,
 		user.ID,
 	)

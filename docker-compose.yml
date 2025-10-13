@@ -9,11 +9,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env # Добавьте эту строку
+    env_file: .env
     environment:
-      - APP_ENV=production
+      - DB_URL=postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?sslmode=disable
       - APP_PORT=8080
-      - DB_URL=postgres://m3zold-server:${DB_PASSWORD}@db:5432/m3zold-server?sslmode=disable
+      - LOG_LEVEL=debug
+      - APP_ENV=production
       - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=info
     restart: unless-stopped
@@ -22,15 +23,14 @@ services:
 
   db:
     image: postgres:15
-    env_file: .env # И эту тоже
     environment:
-      POSTGRES_DB: m3zold-server
-      POSTGRES_USER: m3zold-server
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U m3zold-server -d m3zold-server" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_PASSWORD}" ]
       interval: 10s
       timeout: 5s
       retries: 5

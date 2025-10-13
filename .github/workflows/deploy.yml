@@ -1,47 +1,50 @@
-version: '3.8'
+name: Deploy m3zold server
 
-services:
-  api:
-    build: .
-    image: m3zold-server:latest
-    ports:
-      - "8080:8080"
-    depends_on:
-      db:
-        condition: service_healthy
-    env_file: .env  # Добавьте эту строку
-    environment:
-      - APP_ENV=production
-      - APP_PORT=8080
-      - DB_URL=postgres://m3zold-server:${DB_PASSWORD}@db:5432/m3zold-server?sslmode=disable
-      - JWT_SECRET=${JWT_SECRET}
-      - LOG_LEVEL=info
-    restart: unless-stopped
-    networks:
-      - app-network
+on:
+  push:
+    branches: [main]
 
-  db:
-    image: postgres:15
-    env_file: .env  # И эту тоже
-    environment:
-      POSTGRES_DB: m3zold-server
-      POSTGRES_USER: m3zold-server
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U m3zold-server -d m3zold-server" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - app-network
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-volumes:
-  pgdata:
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-networks:
-  app-network:
-    driver: bridge
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: root
+        key: ${{ secrets.VPS_SSH_KEY }}
+        envs: DB_PASSWORD,JWT_SECRET
+        script: |
+          cd /root/m3zold-server
+          
+          # Создаем .env файл
+          cat > .env << EOF
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          EOF
+          
+          git fetch origin
+          git reset --hard origin/main
+          git clean -fd
+
+          docker-compose down || true
+          docker-compose up -d --build
+
+          echo "Waiting for application to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+              echo "✅ Application is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i: Application not ready yet..."
+            sleep 5
+          done
+          
+          echo "❌ Application failed to start. Logs:"
+          docker-compose logs api
+          exit 1

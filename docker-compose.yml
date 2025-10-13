@@ -9,6 +9,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file: .env # Добавьте эту строку
     environment:
       - APP_ENV=production
       - APP_PORT=8080
@@ -21,6 +22,7 @@ services:
 
   db:
     image: postgres:15
+    env_file: .env # И эту тоже
     environment:
       POSTGRES_DB: m3zold-server
       POSTGRES_USER: m3zold-server

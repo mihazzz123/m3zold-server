@@ -25,24 +25,44 @@ func NewRouter(di *container.Container) *gin.Engine {
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
+	// Global middleware
+	r.Use(middleware.ContextMiddleware(di.Logger))
 
 	// Public routes
 	r.GET("/health", di.HealthHandler.HealthCheck)
 	r.GET("/ready", di.HealthHandler.ReadyCheck)
 
-	// Авторизация
+	// Auth routes (public)
 	auth := r.Group("/auth")
 	{
 		auth.POST("/register", di.UserHandler.Register)
+		auth.POST("/login", di.AuthHandler.Login)
+		auth.POST("/refresh", di.AuthHandler.RefreshToken)
 		auth.POST("/verify-email", di.VerificationEmailHandler.VerifyEmail)
 		auth.POST("/resend-verification", di.VerificationEmailHandler.ResendVerification)
-		// r.POST("/login", userHandler.Login)
+	}
 
-		auth.POST("/devices", di.DeviceHandler.Create)
-		auth.GET("/devices", di.DeviceHandler.List)
-		auth.GET("/devices/:id", di.DeviceHandler.Find)
-		auth.PATCH("/devices/:id/status", di.DeviceHandler.UpdateStatus)
-		auth.DELETE("/devices/:id", di.DeviceHandler.Delete)
+	// Protected routes (require authentication)
+	protected := r.Group("/api")
+	protected.Use(middleware.AuthMiddleware())
+	{
+		// Auth protected routes
+		protected.POST("/auth/logout", di.AuthHandler.Logout)
+		protected.POST("/auth/change-password", di.AuthHandler.ChangePassword)
+
+		// User protected routes
+		protected.GET("/users/profile", di.UserHandler.GetProfile)
+		protected.PUT("/users/profile", di.UserHandler.UpdateProfile)
+
+		// Device protected routes
+		protected.POST("/devices", di.DeviceHandler.Create)
+		protected.GET("/devices", di.DeviceHandler.List)
+		protected.GET("/devices/:id", di.DeviceHandler.Find)
+		protected.PATCH("/devices/:id/status", di.DeviceHandler.UpdateStatus)
+		protected.DELETE("/devices/:id", di.DeviceHandler.Delete)
+
+		// Email protected routes
+		protected.POST("/email/welcome", di.VerificationEmailHandler.SendWelcomeEmail)
 	}
 
 	return r

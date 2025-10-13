@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/mihazzz123/m3zold-server/internal/domain/auth"
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
 )
 
@@ -13,7 +14,6 @@ type PasswordService interface {
 // IDService интерфейс для генерации ID
 type IDService interface {
 	Generate() string
-	GenerateSecureToken(length int) (string, error)
 }
 
 // EmailValidatorService интерфейс для валидации email
@@ -31,4 +31,10 @@ type TokenService interface {
 // UserFactory интерфейс для создания пользователей
 type UserFactory interface {
 	CreateUser(id, email, userName, passwordHash, firstName, lastName string) *user.User
+}
+
+// JWTService интерфейс для работы с JWT токенами
+type JWTService interface {
+	GenerateToken(userID, email, userName string) (string, error)
+	ValidateToken(token string) (*auth.Claims, error)
 }

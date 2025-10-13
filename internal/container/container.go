@@ -14,6 +14,7 @@ import (
 	"github.com/mihazzz123/m3zold-server/internal/domain/services"
 	"github.com/mihazzz123/m3zold-server/internal/infrastructure/repository"
 	infrastructure_services "github.com/mihazzz123/m3zold-server/internal/infrastructure/services"
+	authusecase "github.com/mihazzz123/m3zold-server/internal/usecase/auth"
 	deviceusecase "github.com/mihazzz123/m3zold-server/internal/usecase/device"
 	healthusecase "github.com/mihazzz123/m3zold-server/internal/usecase/health"
 	userusecase "github.com/mihazzz123/m3zold-server/internal/usecase/user"
@@ -30,6 +31,7 @@ type Container struct {
 	DeviceRepo            *repository.DeviceRepository
 	VerificationEmailRepo *repository.VerificationEmailRepository
 	HealthRepo            *repository.HealthRepository
+	AuthRepo              *repository.AuthRepository
 
 	// Services
 	PasswordService       services.PasswordService
@@ -37,16 +39,20 @@ type Container struct {
 	EmailValidatorService services.EmailValidatorService
 	UserFactory           services.UserFactory
 	TokenService          services.TokenService
+	JWTService            services.JWTService
 
 	// Use Cases
 	RegisterUseCase *userusecase.RegisterUseCase
+	ProfileUseCase  *userusecase.ProfileUseCase
 	HealthUseCase   *healthusecase.HealthUseCase
+	AuthUseCase     *authusecase.AuthUseCase
 
 	// Handlers
 	UserHandler              *handlers.UserHandler
 	VerificationEmailHandler *handlers.VerificationEmailHandler
 	DeviceHandler            *handlers.DeviceHandler
 	HealthHandler            *handlers.HealthHandler
+	AuthHandler              *handlers.AuthHandler
 }
 
 func New(ctx context.Context) (*Container, error) {
@@ -68,14 +74,20 @@ func New(ctx context.Context) (*Container, error) {
 	emailValidatorService := infrastructure_services.NewEmailValidatorService()
 	userFactory := infrastructure_services.NewUserFactory()
 	tokenService := infrastructure_services.NewTokenService()
+	jwtService := infrastructure_services.NewJWTService(
+		cfg.Auth.JWTSecret,
+		"m3zold-server",
+		"m3zold-client",
+	)
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepo(db)
 	deviceRepo := repository.NewDeviceRepo(db)
 	verificationEmailRepo := repository.NewVerificationEmailRepository(db)
 	healthRepo := repository.NewHealthRepo(db)
+	authRepo := repository.NewAuthRepository(db)
 
-	// Initialize use cases
+	// UseCases
 	registerUseCase := userusecase.NewRegisterUseCase(
 		userRepo,
 		passwordService,
@@ -83,44 +95,56 @@ func New(ctx context.Context) (*Container, error) {
 		emailValidatorService,
 		userFactory,
 	)
-	healthUseCase := healthusecase.NewHealthUseCase(healthRepo)
-
-	// Device UseCases
+	profileUseCase := userusecase.NewProfileUseCase(userRepo, emailValidatorService)
 	createDeviceUC := deviceusecase.NewCreateUseCase(deviceRepo)
 	deleteUseCase := deviceusecase.NewDeleteUseCase(deviceRepo)
 	findUseCase := deviceusecase.NewFindUseCase(deviceRepo)
 	listDeviceUC := deviceusecase.NewListUseCase(deviceRepo)
 	updateStatusUseCase := deviceusecase.NewUpdateStatusUseCase(deviceRepo)
+	healthUseCase := healthusecase.NewHealthUseCase(healthRepo)
+	authUseCase := authusecase.NewAuthUseCase(
+		userRepo,
+		authRepo,
+		passwordService,
+		tokenService,
+		jwtService,
+		idService,
+	)
 
 	// Initialize handlers
-	userHandler := handlers.NewUserHandler(registerUseCase)
+	userHandler := handlers.NewUserHandler(registerUseCase, profileUseCase)
 	deviceHandler := handlers.NewDeviceHandler(createDeviceUC, listDeviceUC, findUseCase, updateStatusUseCase, deleteUseCase)
 	verificationEmailHandler := handlers.NewVerificationEmailHandler(nil)
 	healthHandler := handlers.NewHealthHandler(healthUseCase)
+	authHandler := handlers.NewAuthHandler(authUseCase)
 
 	return &Container{
-		Config: cfg,
-		Logger: logger,
-		DB:     db,
-
+		Config:                cfg,
+		Logger:                logger,
+		DB:                    db,
 		UserRepo:              userRepo,
 		DeviceRepo:            deviceRepo,
 		VerificationEmailRepo: verificationEmailRepo,
 		HealthRepo:            healthRepo,
+		AuthRepo:              authRepo,
 
 		PasswordService:       passwordService,
 		IDService:             idService,
 		EmailValidatorService: emailValidatorService,
 		UserFactory:           userFactory,
 		TokenService:          tokenService,
+		JWTService:            jwtService,
 
 		RegisterUseCase: registerUseCase,
+		ProfileUseCase:  profileUseCase,
 		HealthUseCase:   healthUseCase,
+		AuthUseCase:     authUseCase,
 
 		UserHandler:              userHandler,
 		DeviceHandler:            deviceHandler,
 		VerificationEmailHandler: verificationEmailHandler,
 		HealthHandler:            healthHandler,
+		AuthHandler:              authHandler,
 	}, nil
 }
 

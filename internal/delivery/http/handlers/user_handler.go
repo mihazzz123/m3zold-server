@@ -5,22 +5,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
-	userUS "github.com/mihazzz123/m3zold-server/internal/usecase/user"
+	userUC "github.com/mihazzz123/m3zold-server/internal/usecase/user"
 )
 
 type UserHandler struct {
-	RegisterUC *userUS.RegisterUseCase
+	RegisterUC     *userUC.RegisterUseCase
+	ProfileUseCase *userUC.ProfileUseCase
 }
 
-func NewUserHandler(registerUseCase *userUS.RegisterUseCase) *UserHandler {
+func NewUserHandler(registerUseCase *userUC.RegisterUseCase, profileUseCase *userUC.ProfileUseCase) *UserHandler {
 	return &UserHandler{
-		RegisterUC: registerUseCase,
+		RegisterUC:     registerUseCase,
+		ProfileUseCase: profileUseCase,
 	}
 }
 
 // Register обработчик регистрации
 func (h *UserHandler) Register(c *gin.Context) {
-	var req userUS.RegisterRequest
+	var req userUC.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request body",
@@ -33,9 +35,15 @@ func (h *UserHandler) Register(c *gin.Context) {
 		status := http.StatusBadRequest
 
 		switch err {
-		case user.ErrEmailTaken:
-			c.JSON(status, gin.H{"error": "Email already registered"})
-		case user.ErrInvalidEmail, user.ErrWeakPassword:
+		case user.ErrEmailTaken,
+			user.ErrInvalidEmail,
+			user.ErrPasswordConfirm,
+			user.ErrPasswordRequired,
+			user.ErrUserNameRequired,
+			user.ErrEmailRequired,
+			user.ErrWeakPassword,
+			user.ErrUserNotFound,
+			user.ErrInvalidCredentials:
 			c.JSON(status, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
@@ -50,18 +58,72 @@ func (h *UserHandler) Register(c *gin.Context) {
 	})
 }
 
-// func (h *UserHandler) Login(c *gin.Context) {
-// 	// Пример: авторизация по userID
-// 	userID := c.PostForm("user_id")
-// 	userUIID, err := uuid.Parse(userID)
-// 	if err != nil {
-// 		c.JSON(400, gin.H{"error": "invalid user_id"})
-// 		return
-// 	}
-// 	token, err := h.AuthSrv.GenerateToken(cfg, userUIID)
-// 	if err != nil {
-// 		c.JSON(500, gin.H{"error": "token generation failed"})
-// 		return
-// 	}
-// 	c.JSON(200, gin.H{"token": token})
-// }
+// GetProfile обработчик получения профиля пользователя
+func (h *UserHandler) GetProfile(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "User not authenticated",
+		})
+		return
+	}
+
+	profile, err := h.ProfileUseCase.GetProfile(c.Request.Context(), userID.(string))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   "User not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    profile,
+	})
+}
+
+// UpdateProfile обработчик обновления профиля
+func (h *UserHandler) UpdateProfile(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "User not authenticated",
+		})
+		return
+	}
+
+	var req userUC.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request body",
+		})
+		return
+	}
+
+	updatedProfile, err := h.ProfileUseCase.UpdateProfile(c.Request.Context(), userID.(string), req)
+	if err != nil {
+		status := http.StatusBadRequest
+		if err == user.ErrEmailTaken {
+			c.JSON(status, gin.H{
+				"success": false,
+				"error":   "Email already taken",
+			})
+			return
+		}
+		c.JSON(status, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    updatedProfile,
+		"message": "Profile updated successfully",
+	})
+}

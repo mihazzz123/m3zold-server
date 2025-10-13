@@ -6,9 +6,6 @@ WORKDIR /app
 COPY vendor ./vendor
 COPY go.mod go.sum ./
 
-# Копируем .env файл в контейнер
-COPY .env ./
-
 # Копируем остальной код
 COPY . .
 

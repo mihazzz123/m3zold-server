@@ -2,17 +2,15 @@ FROM golang:1.25.1-alpine
 
 WORKDIR /app
 
-# Копируем go.mod и go.sum
+# Копируем vendor папку и модули
+COPY vendor ./vendor
 COPY go.mod go.sum ./
-
-# Устанавливаем зависимости
-RUN go mod download
 
 # Копируем остальной код
 COPY . .
 
-# Сборка бинарника
-RUN CGO_ENABLED=0 GOOS=linux go build -o m3zold-server ./cmd
+# Сборка бинарника (используем vendor папку)
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o m3zold-server ./cmd
 
 EXPOSE 8080
 CMD ["./m3zold-server"]

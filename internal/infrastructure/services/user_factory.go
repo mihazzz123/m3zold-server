@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/mihazzz123/m3zold-server/internal/domain/services"
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
 )
 
@@ -8,7 +9,7 @@ import (
 type UserFactory struct{}
 
 // NewUserFactory создает новую UserFactory
-func NewUserFactory() *UserFactory {
+func NewUserFactory() services.UserFactory {
 	return &UserFactory{}
 }
 

@@ -1,27 +1,21 @@
 package http
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mihazzz123/m3zold-server/internal/config"
+	"github.com/mihazzz123/m3zold-server/internal/container"
+	"github.com/mihazzz123/m3zold-server/internal/delivery/http/handlers"
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http/middleware"
 )
 
 type Router struct {
-	UserHandler    *UserHandler
-	DeviceHandler  *DeviceHandler
+	UserHandler    *handlers.UserHandler
+	DeviceHandler  *handlers.DeviceHandler
 	AuthMiddleware gin.HandlerFunc // позже заменим на реальную JWT-мидлвару
 }
 
-func NewRouter(
-	ctx context.Context,
-	cfg *config.Config,
-	userHandler *UserHandler,
-	deviceHandler *DeviceHandler,
-	healthHandler *HealthHandler,
-) *gin.Engine {
+func NewRouter(di *container.Container) *gin.Engine {
 	rateLimiter := middleware.NewRateLimiter()
 	r := gin.Default()
 	// Ограничение частоты запросов (реализуйте отдельно)
@@ -33,21 +27,21 @@ func NewRouter(
 	})
 
 	// Public routes
-	r.GET("/health", healthHandler.HealthCheck)
-	r.GET("/ready", healthHandler.ReadyCheck)
+	r.GET("/health", di.HealthHandler.HealthCheck)
+	r.GET("/ready", di.HealthHandler.ReadyCheck)
 
 	// Авторизация
-	r.POST("/auth/register", userHandler.Register)
+	r.POST("/auth/register", di.UserHandler.Register)
 	// r.POST("/login", userHandler.Login)
 
 	// Защищённые маршруты
-	auth := r.Group("/", middleware.Auth(cfg))
+	auth := r.Group("/", middleware.Auth(di.Config))
 	{
-		auth.POST("/devices", deviceHandler.Create)
-		auth.GET("/devices", deviceHandler.List)
-		auth.GET("/devices/:id", deviceHandler.Find)
-		auth.PATCH("/devices/:id/status", deviceHandler.UpdateStatus)
-		auth.DELETE("/devices/:id", deviceHandler.Delete)
+		auth.POST("/devices", di.DeviceHandler.Create)
+		auth.GET("/devices", di.DeviceHandler.List)
+		auth.GET("/devices/:id", di.DeviceHandler.Find)
+		auth.PATCH("/devices/:id/status", di.DeviceHandler.UpdateStatus)
+		auth.DELETE("/devices/:id", di.DeviceHandler.Delete)
 	}
 
 	return r

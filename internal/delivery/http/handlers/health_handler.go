@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	health "github.com/mihazzz123/m3zold-server/internal/usecase"
+	health "github.com/mihazzz123/m3zold-server/internal/usecase/health"
 )
 
 type HealthHandler struct {

@@ -6,87 +6,163 @@ import (
 	"os"
 	"time"
 
-	"github.com/mihazzz123/m3zold-server/internal/config"
-	"github.com/mihazzz123/m3zold-server/internal/delivery/http/handlers"
-	"github.com/mihazzz123/m3zold-server/internal/infrastructure/repository"
-	infrastructure_services "github.com/mihazzz123/m3zold-server/internal/infrastructure/services"
-	healthusecase "github.com/mihazzz123/m3zold-server/internal/usecase"
-	"github.com/mihazzz123/m3zold-server/internal/usecase/device"
-	userusecase "github.com/mihazzz123/m3zold-server/internal/usecase/user"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mihazzz123/m3zold-server/internal/config"
+	"github.com/mihazzz123/m3zold-server/internal/delivery/http/handlers"
+	"github.com/mihazzz123/m3zold-server/internal/domain/services"
+	"github.com/mihazzz123/m3zold-server/internal/infrastructure/repository"
+	infrastructure_services "github.com/mihazzz123/m3zold-server/internal/infrastructure/services"
+	deviceusecase "github.com/mihazzz123/m3zold-server/internal/usecase/device"
+	healthusecase "github.com/mihazzz123/m3zold-server/internal/usecase/health"
+	userusecase "github.com/mihazzz123/m3zold-server/internal/usecase/user"
 )
 
 type Container struct {
+	// Core dependencies
 	Config *config.Config
 	Logger *logrus.Logger
 	DB     *pgxpool.Pool
 
-	// Health
-	HealthUseCase *healthusecase.HealthUseCase
-	HealthHandler *handlers.HealthHandler
+	// Repositories
+	UserRepo              *repository.UserRepository
+	DeviceRepo            *repository.DeviceRepository
+	VerificationEmailRepo *repository.VerificationEmailRepository
+	HealthRepo            *repository.HealthRepository
 
-	UserHandler   *handlers.UserHandler
-	DeviceHandler *handlers.DeviceHandler
+	// Services
+	PasswordService       services.PasswordService
+	IDService             services.IDService
+	EmailValidatorService services.EmailValidatorService
+	UserFactory           services.UserFactory
+	TokenService          services.TokenService
+
+	// Use Cases
+	RegisterUseCase *userusecase.RegisterUseCase
+	HealthUseCase   *healthusecase.HealthUseCase
+
+	// Handlers
+	UserHandler              *handlers.UserHandler
+	VerificationEmailHandler *handlers.VerificationEmailHandler
+	DeviceHandler            *handlers.DeviceHandler
+	HealthHandler            *handlers.HealthHandler
 }
 
 func New(ctx context.Context) (*Container, error) {
+	// Initialize config
 	cfg := config.New()
-	logger := loggerSetup(cfg)
-	// Сначала проверяем и ждем подключение к БД
-	db, err := waitForDatabase(ctx, cfg.Database.Url, logger)
-	if err != nil {
-		logger.Fatal("DB connection failed:", err)
-	}
-	defer db.Close()
 
-	// Services
+	// Initialize logger
+	logger := setupLogger(cfg)
+
+	// Initialize database
+	db, err := setupDatabase(ctx, cfg.Database.Url, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup database: %w", err)
+	}
+
+	// Initialize services
 	passwordService := infrastructure_services.NewPasswordService(0)
 	idService := infrastructure_services.NewIDService()
-	emailService := infrastructure_services.NewEmailService()
+	emailValidatorService := infrastructure_services.NewEmailValidatorService()
 	userFactory := infrastructure_services.NewUserFactory()
+	tokenService := infrastructure_services.NewTokenService()
 
-	// Repositories
+	// Initialize repositories
 	userRepo := repository.NewUserRepo(db)
-	healthRepo := repository.NewHealthRepo(db)
 	deviceRepo := repository.NewDeviceRepo(db)
+	verificationEmailRepo := repository.NewVerificationEmailRepository(db)
+	healthRepo := repository.NewHealthRepo(db)
 
-	// Use Cases
+	// Initialize use cases
 	registerUseCase := userusecase.NewRegisterUseCase(
 		userRepo,
 		passwordService,
 		idService,
-		emailService,
+		emailValidatorService,
 		userFactory,
 	)
-
 	healthUseCase := healthusecase.NewHealthUseCase(healthRepo)
-	healthHandler := handlers.NewHealthHandler(healthUseCase)
 
 	// Device UseCases
-	createDeviceUC := device.NewCreateUseCase(deviceRepo)
-	deleteUseCase := device.NewDeleteUseCase(deviceRepo)
-	findUseCase := device.NewFindUseCase(deviceRepo)
-	listDeviceUC := device.NewListUseCase(deviceRepo)
-	updateStatusUseCase := device.NewUpdateStatusUseCase(deviceRepo)
+	createDeviceUC := deviceusecase.NewCreateUseCase(deviceRepo)
+	deleteUseCase := deviceusecase.NewDeleteUseCase(deviceRepo)
+	findUseCase := deviceusecase.NewFindUseCase(deviceRepo)
+	listDeviceUC := deviceusecase.NewListUseCase(deviceRepo)
+	updateStatusUseCase := deviceusecase.NewUpdateStatusUseCase(deviceRepo)
 
-	// Handlers
+	// Initialize handlers
 	userHandler := handlers.NewUserHandler(registerUseCase)
 	deviceHandler := handlers.NewDeviceHandler(createDeviceUC, listDeviceUC, findUseCase, updateStatusUseCase, deleteUseCase)
+	verificationEmailHandler := handlers.NewVerificationEmailHandler(nil)
+	healthHandler := handlers.NewHealthHandler(healthUseCase)
 
 	return &Container{
-		Logger:        logger,
-		Config:        cfg,
-		DB:            db,
-		UserHandler:   userHandler,
-		DeviceHandler: deviceHandler,
-		HealthUseCase: healthUseCase,
-		HealthHandler: healthHandler,
+		Config: cfg,
+		Logger: logger,
+		DB:     db,
+
+		UserRepo:              userRepo,
+		DeviceRepo:            deviceRepo,
+		VerificationEmailRepo: verificationEmailRepo,
+		HealthRepo:            healthRepo,
+
+		PasswordService:       passwordService,
+		IDService:             idService,
+		EmailValidatorService: emailValidatorService,
+		UserFactory:           userFactory,
+		TokenService:          tokenService,
+
+		RegisterUseCase: registerUseCase,
+		HealthUseCase:   healthUseCase,
+
+		UserHandler:              userHandler,
+		DeviceHandler:            deviceHandler,
+		VerificationEmailHandler: verificationEmailHandler,
+		HealthHandler:            healthHandler,
 	}, nil
 }
 
-func loggerSetup(cfg *config.Config) *logrus.Logger {
+// Close корректно закрывает все ресурсы контейнера
+func (c *Container) Close() {
+	c.Logger.Info("🔄 Closing container resources...")
+
+	// Закрываем соединение с БД
+	if c.DB != nil {
+		c.Logger.Info("📦 Closing database connection...")
+		c.DB.Close()
+		c.Logger.Info("✅ Database connection closed")
+	}
+
+	// Закрываем файловые дескрипторы логгера если пишем в файл
+	if c.Logger != nil && c.Config.Logger.Output == "file" {
+		if file, ok := c.Logger.Out.(*os.File); ok && file != os.Stdout {
+			c.Logger.Info("📝 Closing log file...")
+			file.Close()
+			c.Logger.Info("✅ Log file closed")
+		}
+	}
+
+	c.Logger.Info("✅ All container resources closed")
+}
+
+// GetDB возвращает пул соединений с БД (для миграций и т.д.)
+func (c *Container) GetDB() *pgxpool.Pool {
+	return c.DB
+}
+
+// GetLogger возвращает логгер
+func (c *Container) GetLogger() *logrus.Logger {
+	return c.Logger
+}
+
+// GetConfig возвращает конфиг
+func (c *Container) GetConfig() *config.Config {
+	return c.Config
+}
+
+func setupLogger(cfg *config.Config) *logrus.Logger {
 	logger := logrus.New()
 
 	// Форматтер
@@ -131,8 +207,8 @@ func loggerSetup(cfg *config.Config) *logrus.Logger {
 	return logger
 }
 
-// waitForDatabase ожидает подключения к БД с повторными попытками
-func waitForDatabase(ctx context.Context, dbURL string, logger *logrus.Logger) (*pgxpool.Pool, error) {
+// setupDatabase ожидает подключения к БД с повторными попытками
+func setupDatabase(ctx context.Context, dbURL string, logger *logrus.Logger) (*pgxpool.Pool, error) {
 	maxAttempts := 10
 	retryDelay := 3 * time.Second
 

@@ -31,12 +31,13 @@ func NewRouter(di *container.Container) *gin.Engine {
 	r.GET("/ready", di.HealthHandler.ReadyCheck)
 
 	// Авторизация
-	r.POST("/auth/register", di.UserHandler.Register)
-	// r.POST("/login", userHandler.Login)
-
-	// Защищённые маршруты
-	auth := r.Group("/", middleware.Auth(di.Config))
+	auth := r.Group("/auth")
 	{
+		auth.POST("/register", di.UserHandler.Register)
+		auth.POST("/verify-email", di.VerificationEmailHandler.VerifyEmail)
+		auth.POST("/resend-verification", di.VerificationEmailHandler.ResendVerification)
+		// r.POST("/login", userHandler.Login)
+
 		auth.POST("/devices", di.DeviceHandler.Create)
 		auth.GET("/devices", di.DeviceHandler.List)
 		auth.GET("/devices/:id", di.DeviceHandler.Find)

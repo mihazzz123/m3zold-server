@@ -6,13 +6,14 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/mihazzz123/m3zold-server/internal/domain/services"
 )
 
 // IDService реализация IDGenerator
 type IDService struct{}
 
 // NewIDService создает новый IDService
-func NewIDService() *IDService {
+func NewIDService() services.IDService {
 	return &IDService{}
 }
 

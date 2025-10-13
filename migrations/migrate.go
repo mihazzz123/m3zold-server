@@ -106,8 +106,18 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	return nil
 }
 
-// clearMigrations очищает таблицы (только для development)
 func clearMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	// Проверяем что пул не закрыт и валиден
+	if pool == nil {
+		return fmt.Errorf("database pool is nil")
+	}
+
+	// Проверяем подключение
+	if err := pool.Ping(ctx); err != nil {
+		return fmt.Errorf("database pool is not connected: %w", err)
+	}
+
+	// Сначала удаляем таблицы в правильном порядке (из-за foreign keys)
 	tables := []string{
 		"m3zold_schema.verification_tokens",
 		"m3zold_schema.devices",
@@ -117,19 +127,14 @@ func clearMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 
 	for _, table := range tables {
 		query := fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", table)
-		if _, err := pool.Exec(ctx, query); err != nil {
+		_, err := pool.Exec(ctx, query)
+		if err != nil {
 			// Игнорируем ошибки "table does not exist"
 			if !strings.Contains(err.Error(), "does not exist") {
-				return fmt.Errorf("failed to drop table %s: %w", table, err)
+				log.Printf("⚠️  Failed to drop table %s: %v", table, err)
 			}
-		}
-		logrus.Infof("🗑️  Dropped table: %s", table)
-	}
-
-	// Также удаляем схему если нужно
-	if _, err := pool.Exec(ctx, "DROP SCHEMA IF EXISTS m3zold_schema CASCADE"); err != nil {
-		if !strings.Contains(err.Error(), "does not exist") {
-			return fmt.Errorf("failed to drop schema: %w", err)
+		} else {
+			log.Printf("🗑️  Dropped table: %s", table)
 		}
 	}
 

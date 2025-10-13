@@ -11,17 +11,17 @@ import (
 
 type RegisterUseCase struct {
 	userRepo       user.Repository
-	passwordHasher services.PasswordHasher
-	idGenerator    services.IDGenerator
-	emailValidator services.EmailValidator
+	passwordHasher services.PasswordService
+	idGenerator    services.IDService
+	emailValidator services.EmailValidatorService
 	userFactory    services.UserFactory
 }
 
 func NewRegisterUseCase(
 	userRepo user.Repository,
-	passwordHasher services.PasswordHasher,
-	idGenerator services.IDGenerator,
-	emailValidator services.EmailValidator,
+	passwordHasher services.PasswordService,
+	idGenerator services.IDService,
+	emailValidator services.EmailValidatorService,
 	userFactory services.UserFactory,
 ) *RegisterUseCase {
 	return &RegisterUseCase{

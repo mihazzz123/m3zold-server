@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 
+	"github.com/mihazzz123/m3zold-server/internal/domain/services"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -12,7 +13,7 @@ type PasswordService struct {
 }
 
 // NewPasswordService создает новый PasswordService
-func NewPasswordService(cost int) *PasswordService {
+func NewPasswordService(cost int) services.PasswordService {
 	if cost == 0 {
 		cost = bcrypt.DefaultCost
 	}

@@ -8,16 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type deviceRepo struct {
+type DeviceRepository struct {
 	DB *pgxpool.Pool
 }
 
-func NewDeviceRepo(db *pgxpool.Pool) *deviceRepo {
-	return &deviceRepo{DB: db}
+func NewDeviceRepo(db *pgxpool.Pool) *DeviceRepository {
+	return &DeviceRepository{DB: db}
 }
 
 // ✅ Create — добавление нового устройства
-func (r *deviceRepo) Create(ctx context.Context, d *device.Device) error {
+func (r *DeviceRepository) Create(ctx context.Context, d *device.Device) error {
 	_, err := r.DB.Exec(ctx,
 		`INSERT INTO devices (user_id, name, type, status)
          VALUES ($1, $2, $3, $4)`,
@@ -26,7 +26,7 @@ func (r *deviceRepo) Create(ctx context.Context, d *device.Device) error {
 }
 
 // ✅ ListByUser — список устройств пользователя
-func (r *deviceRepo) ListByUser(ctx context.Context, userID int) ([]device.Device, error) {
+func (r *DeviceRepository) ListByUser(ctx context.Context, userID int) ([]device.Device, error) {
 	rows, err := r.DB.Query(ctx,
 		`SELECT id, user_id, name, type, status
          FROM devices WHERE user_id = $1`, userID)
@@ -47,7 +47,7 @@ func (r *deviceRepo) ListByUser(ctx context.Context, userID int) ([]device.Devic
 }
 
 // ✅ FindByID — получить устройство по ID
-func (r *deviceRepo) FindByID(ctx context.Context, id int) (*device.Device, error) {
+func (r *DeviceRepository) FindByID(ctx context.Context, id int) (*device.Device, error) {
 	row := r.DB.QueryRow(ctx,
 		`SELECT id, user_id, name, type, status
          FROM devices WHERE id = $1`, id)
@@ -60,7 +60,7 @@ func (r *deviceRepo) FindByID(ctx context.Context, id int) (*device.Device, erro
 }
 
 // ✅ UpdateStatus — обновить статус устройства
-func (r *deviceRepo) UpdateStatus(ctx context.Context, id int, status string) error {
+func (r *DeviceRepository) UpdateStatus(ctx context.Context, id int, status string) error {
 	_, err := r.DB.Exec(ctx,
 		`UPDATE devices SET status = $1 WHERE id = $2`,
 		status, id)
@@ -68,7 +68,7 @@ func (r *deviceRepo) UpdateStatus(ctx context.Context, id int, status string) er
 }
 
 // ✅ Delete — удалить устройство
-func (r *deviceRepo) Delete(ctx context.Context, id int) error {
+func (r *DeviceRepository) Delete(ctx context.Context, id int) error {
 	_, err := r.DB.Exec(ctx,
 		`DELETE FROM devices WHERE id = $1`, id)
 	return err

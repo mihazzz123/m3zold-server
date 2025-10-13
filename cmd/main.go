@@ -2,47 +2,64 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/mihazzz123/m3zold-server/internal/container"
 	"github.com/mihazzz123/m3zold-server/internal/delivery/http"
 	"github.com/mihazzz123/m3zold-server/migrations"
-
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	ctx := context.Background()
-	di, err := container.New(ctx)
+	// Создаем контекст для graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	// Initialize DI container
+	container, err := container.New(ctx)
 	if err != nil {
-		di.Logger.Fatal("Container initialization failed:", err)
+		panic(err)
 	}
-	// Логируем информацию о подключении к БД (без пароля)
-	di.Logger.WithFields(logrus.Fields{
-		"host": di.Config.Database.Host,
-		"port": di.Config.Database.Port,
-		"user": di.Config.Database.User,
-		"db":   di.Config.Database.DBName,
-	}).Info("🔗 Initializing database connection")
+	defer container.Close() // ✅ Теперь Close() реализован
 
-	di.Logger.Info("✅ Database connection established")
+	container.Logger.Info("🚀 Application starting...")
 
-	// Затем выполняем миграции
-	if err := migrations.Migrate(ctx, di.DB); err != nil {
-		di.Logger.Fatal("Database migrations failed:", err)
+	// Создаем отдельный контекст для миграций
+	migrateCtx, migrateCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer migrateCancel()
+
+	// Run migrations
+	if err := migrations.Migrate(migrateCtx, container.DB); err != nil {
+		container.Logger.Fatal("Database migrations failed:", err)
 	}
 
-	di.Logger.Info("✅ Database migrations completed")
+	container.Logger.Info("✅ Database migrations completed")
 
-	// Запускаем фоновый мониторинг здоровья БД
-	go di.HealthUseCase.MonitorDB(ctx)
+	// Initialize router
+	router := http.NewRouter(container)
 
-	r := http.NewRouter(di)
+	// Start server in goroutine
+	serverAddr := ":" + string(container.Config.App.Port)
+	go func() {
+		container.Logger.Infof("🌐 Server starting on %s", serverAddr)
+		if err := router.Run(serverAddr); err != nil {
+			container.Logger.Fatal("Server failed to start:", err)
+		}
+	}()
 
-	serverAddr := fmt.Sprintf(":%d", di.Config.App.Port)
-	di.Logger.Infof("🚀 Server starting on %s", serverAddr)
+	// Wait for interrupt signal
+	<-ctx.Done()
+	container.Logger.Info("🛑 Shutdown signal received")
 
-	if err := r.Run(serverAddr); err != nil {
-		di.Logger.Fatal("Server failed to start:", err)
-	}
+	// Graceful shutdown с таймаутом
+	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Здесь можно добавить дополнительную логику graceful shutdown
+	// Например: закрытие HTTP сервера, ожидание завершения запросов и т.д.
+
+	container.Logger.Info("👋 Application stopped gracefully")
 }

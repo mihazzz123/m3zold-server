@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     image: m3zold-server:latest
     ports:
       - "8080:8080"
@@ -17,7 +15,6 @@ services:
       - DB_URL=postgres://m3zold-server:${DB_PASSWORD}@db:5432/m3zold-server?sslmode=disable
       - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=info
-      - LOG_FORMAT=json
     restart: unless-stopped
     networks:
       - app-network

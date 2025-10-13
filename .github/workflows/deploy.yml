@@ -26,10 +26,34 @@ jobs:
           git reset --hard origin/main
           git clean -fd
 
-          # Деплоим
-          docker-compose down
-          docker-compose up -d --build
+          # Деплоим с обработкой ошибок
+          docker-compose down || true
+          
+          # Собираем с ретраями на случай сетевых проблем
+          for i in 1 2 3; do
+            if docker-compose build --no-cache; then
+              break
+            fi
+            echo "Build attempt $i failed, retrying..."
+            sleep 10
+          done
+          
+          docker-compose up -d
 
-          # Проверяем здоровье
-          sleep 30
-          curl -f http://localhost:8080/health || docker logs m3zold-server-api-1 --tail 50
+          # Ждем запуска и проверяем здоровье
+          echo "Waiting for application to start..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+              echo "✅ Application is healthy!"
+              break
+            fi
+            echo "Attempt $i: Application not ready yet..."
+            sleep 5
+          done
+          
+          # Если не запустилось - показываем логи
+          if ! curl -f http://localhost:8080/health; then
+            echo "❌ Application failed to start. Logs:"
+            docker-compose logs api
+            exit 1
+          fi

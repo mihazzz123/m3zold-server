@@ -10,35 +10,26 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
-    - name: Reset local changes on VPS
-      uses: appleboy/ssh-action@v0.1.10
-      with:
-        host: 83.166.247.181
-        username: root
-        key: ${{ secrets.VPS_SSH_KEY }}
-        script: |
-          cd /root/m3zold-server
-          git reset --hard HEAD
+      uses: actions/checkout@v4
 
-    - name: Pull latest code on VPS
-      uses: appleboy/ssh-action@v0.1.10
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.3
       with:
-        host: 83.166.247.181
+        host: ${{ secrets.VPS_HOST }}
         username: root
         key: ${{ secrets.VPS_SSH_KEY }}
         script: |
           cd /root/m3zold-server
-          git pull origin main
+          
+          # Получаем последние изменения
+          git fetch origin
+          git reset --hard origin/main
+          git clean -fd
 
-    - name: Restart Docker Compose
-      uses: appleboy/ssh-action@v0.1.10
-      with:
-        host: 83.166.247.181
-        username: root
-        key: ${{ secrets.VPS_SSH_KEY }}
-        script: |
-          cd /root/m3zold-server
+          # Деплоим
           docker-compose down
           docker-compose up -d --build
 
+          # Проверяем здоровье
+          sleep 30
+          curl -f http://localhost:8080/health || docker logs m3zold-server-api-1 --tail 50

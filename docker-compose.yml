@@ -5,28 +5,45 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${APP_IMAGE:-m3zold-server}
+    image: m3zold-server:latest
     ports:
-      - "${APP_PORT:-8080}:${APP_PORT:-8080}"
+      - "8080:8080"
     depends_on:
-      - db
-    env_file:
-      - .env
+      db:
+        condition: service_healthy
     environment:
-      DB_URL: ${DB_URL}
-    restart: always
+      - APP_ENV=production
+      - APP_PORT=8080
+      - DB_URL=postgres://m3zold-server:${DB_PASSWORD}@db:5432/m3zold-server?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+    restart: unless-stopped
+    networks:
+      - app-network
 
   db:
     image: postgres:15
-    restart: always
-    env_file:
-      - .env
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: m3zold-server
+      POSTGRES_USER: m3zold-server
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U m3zold-server -d m3zold-server" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - app-network
 
 volumes:
   pgdata:
+
+
+networks:
+  app-network:
+    driver: bridge

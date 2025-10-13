@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,27 +40,15 @@ func main() {
 	container.Logger.Info("✅ Database migrations completed")
 
 	// Initialize router
-	router := http.NewRouter(container)
+	r := http.NewRouter(container)
 
 	// Start server in goroutine
-	serverAddr := ":" + string(container.Config.App.Port)
-	go func() {
-		container.Logger.Infof("🌐 Server starting on %s", serverAddr)
-		if err := router.Run(serverAddr); err != nil {
-			container.Logger.Fatal("Server failed to start:", err)
-		}
-	}()
+	serverAddr := fmt.Sprintf(":%d", container.Config.App.Port)
+	container.Logger.Infof("🚀 Server starting on %s", serverAddr)
 
-	// Wait for interrupt signal
-	<-ctx.Done()
-	container.Logger.Info("🛑 Shutdown signal received")
-
-	// Graceful shutdown с таймаутом
-	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Здесь можно добавить дополнительную логику graceful shutdown
-	// Например: закрытие HTTP сервера, ожидание завершения запросов и т.д.
+	if err := r.Run(serverAddr); err != nil {
+		container.Logger.Fatal("Server failed to start:", err)
+	}
 
 	container.Logger.Info("👋 Application stopped gracefully")
 }

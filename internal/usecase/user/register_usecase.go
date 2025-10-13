@@ -111,19 +111,19 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, input RegisterRequest) (
 
 func (uc *RegisterUseCase) validateInput(input RegisterRequest) error {
 	if strings.TrimSpace(input.Email) == "" {
-		return fmt.Errorf("email is required")
+		return user.ErrEmailRequired
 	}
 
 	if strings.TrimSpace(input.UserName) == "" {
-		return fmt.Errorf("username is required")
+		return user.ErrUserNameRequired
 	}
 
 	if strings.TrimSpace(input.Password) == "" {
-		return fmt.Errorf("password is required")
+		return user.ErrPasswordRequired
 	}
 
 	if input.Password != input.ConfirmPassword {
-		return fmt.Errorf("passwords do not match")
+		return user.ErrPasswordConfirm
 	}
 
 	if len(input.Password) < 8 {

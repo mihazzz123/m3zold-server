@@ -32,7 +32,7 @@ jobs:
 
           # Ждем запуска и проверяем здоровье
           echo "Waiting for application to start..."
-          for i in {1..30}; do
+          for i in {1..10}; do
             if curl -f http://localhost:8080/health > /dev/null 2>&1; then
               echo "✅ Application is healthy!"
               exit 0

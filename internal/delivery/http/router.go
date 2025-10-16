@@ -35,7 +35,7 @@ func NewRouter(di *container.Container) *gin.Engine {
 	// Auth routes (public)
 	auth := r.Group("/auth")
 	{
-		auth.POST("/register", di.UserHandler.Register)
+		auth.POST("/register", di.AuthHandler.Register)
 		auth.POST("/login", di.AuthHandler.Login)
 		auth.POST("/refresh", di.AuthHandler.RefreshToken)
 		auth.POST("/verify-email", di.VerificationEmailHandler.VerifyEmail)

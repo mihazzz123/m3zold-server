@@ -5,17 +5,56 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mihazzz123/m3zold-server/internal/domain/user"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/auth"
 )
 
 type AuthHandler struct {
-	authUseCase *auth.AuthUseCase
+	AuthUseCase *auth.AuthUseCase
 }
 
 func NewAuthHandler(authUseCase *auth.AuthUseCase) *AuthHandler {
 	return &AuthHandler{
-		authUseCase: authUseCase,
+		AuthUseCase: authUseCase,
 	}
+}
+
+// Register обработчик регистрации
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req auth.RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request body",
+		})
+		return
+	}
+
+	response, err := h.AuthUseCase.Register(c.Request.Context(), req)
+	if err != nil {
+		status := http.StatusBadRequest
+
+		switch err {
+		case user.ErrEmailTaken,
+			user.ErrInvalidEmail,
+			user.ErrPasswordConfirm,
+			user.ErrPasswordRequired,
+			user.ErrUserNameRequired,
+			user.ErrEmailRequired,
+			user.ErrWeakPassword,
+			user.ErrUserNotFound,
+			user.ErrInvalidCredentials:
+			c.JSON(status, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Registration successful",
+		"user":    response,
+	})
 }
 
 // Login обработчик входа
@@ -30,7 +69,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.authUseCase.Login(c.Request.Context(), req.Email, req.Password)
+	token, err := h.AuthUseCase.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
@@ -75,7 +114,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	token := parts[1]
 
-	if err := h.authUseCase.Logout(c.Request.Context(), token); err != nil {
+	if err := h.AuthUseCase.Logout(c.Request.Context(), token); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "Failed to logout",
@@ -101,7 +140,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	newToken, err := h.authUseCase.RefreshToken(c.Request.Context(), req.RefreshToken)
+	newToken, err := h.AuthUseCase.RefreshToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
@@ -142,7 +181,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.authUseCase.ChangePassword(c.Request.Context(), userID.(string), req.OldPassword, req.NewPassword); err != nil {
+	if err := h.AuthUseCase.ChangePassword(c.Request.Context(), userID.(string), req.OldPassword, req.NewPassword); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   err.Error(),

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mihazzz123/m3zold-server/internal/domain/auth"
@@ -11,30 +12,54 @@ import (
 )
 
 type AuthUseCase struct {
-	userRepo        user.Repository
 	authRepo        auth.Repository
+	userRepo        user.Repository
 	passwordService services.PasswordService
 	tokenService    services.TokenService
 	jwtService      services.JWTService
 	idService       services.IDService
+	emailValidator  services.EmailValidatorService
+	userFactory     services.UserFactory
 }
 
 func NewAuthUseCase(
-	userRepo user.Repository,
 	authRepo auth.Repository,
+	userRepo user.Repository,
 	passwordService services.PasswordService,
 	tokenService services.TokenService,
 	jwtService services.JWTService,
+	emailValidator services.EmailValidatorService,
 	idService services.IDService,
+	userFactory services.UserFactory,
 ) *AuthUseCase {
 	return &AuthUseCase{
-		userRepo:        userRepo,
 		authRepo:        authRepo,
+		userRepo:        userRepo,
 		passwordService: passwordService,
 		tokenService:    tokenService,
 		jwtService:      jwtService,
 		idService:       idService,
+		emailValidator:  emailValidator,
+		userFactory:     userFactory,
 	}
+}
+
+type RegisterRequest struct {
+	Email           string `json:"email"`
+	UserName        string `json:"user_name"`
+	Password        string `json:"password"`
+	ConfirmPassword string `json:"confirm_password"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+}
+
+type RegisterResponse struct {
+	ID        string `json:"id"`
+	Email     string `json:"email"`
+	UserName  string `json:"user_name"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	IsActive  bool   `json:"is_active"`
 }
 
 // LoginRequest DTO для входа
@@ -65,6 +90,88 @@ type RefreshRequest struct {
 type ChangePasswordRequest struct {
 	OldPassword string `json:"old_password" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
+func (uc *AuthUseCase) Register(ctx context.Context, input RegisterRequest) (*RegisterResponse, error) {
+	// Валидация входных данных
+	if err := uc.validateInput(input); err != nil {
+		return nil, err
+	}
+
+	// Нормализация email
+	email := strings.ToLower(strings.TrimSpace(input.Email))
+
+	// Валидация email через domain service
+	if err := uc.emailValidator.Validate(email); err != nil {
+		return nil, err
+	}
+
+	// Проверка существования пользователя
+	exists, err := uc.userRepo.ExistsByEmail(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("repository error: %w", err)
+	}
+	if exists {
+		return nil, user.ErrEmailTaken
+	}
+
+	// Хеширование пароля через domain service
+	passwordHash, err := uc.passwordService.Hash(input.Password)
+	if err != nil {
+		return nil, fmt.Errorf("password processing error: %w", err)
+	}
+
+	// Генерация ID через domain service
+	userID := uc.idService.Generate()
+
+	// Создание пользователя через фабрику
+	newUser := uc.userFactory.CreateUser(
+		userID,
+		email,
+		input.UserName,
+		passwordHash,
+		input.FirstName,
+		input.LastName,
+	)
+
+	// Сохранение пользователя
+	if err = uc.userRepo.Create(ctx, newUser); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Возвращаем ответ
+	return &RegisterResponse{
+		ID:        newUser.ID,
+		Email:     newUser.Email,
+		UserName:  newUser.UserName,
+		FirstName: newUser.FirstName,
+		LastName:  newUser.LastName,
+		IsActive:  newUser.IsActive,
+	}, nil
+}
+
+func (uc *AuthUseCase) validateInput(input RegisterRequest) error {
+	if strings.TrimSpace(input.Email) == "" {
+		return user.ErrEmailRequired
+	}
+
+	if strings.TrimSpace(input.UserName) == "" {
+		return user.ErrUserNameRequired
+	}
+
+	if strings.TrimSpace(input.Password) == "" {
+		return user.ErrPasswordRequired
+	}
+
+	if input.Password != input.ConfirmPassword {
+		return user.ErrPasswordConfirm
+	}
+
+	if len(input.Password) < 8 {
+		return user.ErrWeakPassword
+	}
+
+	return nil
 }
 
 func (uc *AuthUseCase) Login(ctx context.Context, email, password string) (*auth.Token, error) {

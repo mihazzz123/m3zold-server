@@ -9,53 +9,13 @@ import (
 )
 
 type UserHandler struct {
-	RegisterUC     *userUC.RegisterUseCase
 	ProfileUseCase *userUC.ProfileUseCase
 }
 
-func NewUserHandler(registerUseCase *userUC.RegisterUseCase, profileUseCase *userUC.ProfileUseCase) *UserHandler {
+func NewUserHandler(profileUseCase *userUC.ProfileUseCase) *UserHandler {
 	return &UserHandler{
-		RegisterUC:     registerUseCase,
 		ProfileUseCase: profileUseCase,
 	}
-}
-
-// Register обработчик регистрации
-func (h *UserHandler) Register(c *gin.Context) {
-	var req userUC.RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request body",
-		})
-		return
-	}
-
-	response, err := h.RegisterUC.Execute(c.Request.Context(), req)
-	if err != nil {
-		status := http.StatusBadRequest
-
-		switch err {
-		case user.ErrEmailTaken,
-			user.ErrInvalidEmail,
-			user.ErrPasswordConfirm,
-			user.ErrPasswordRequired,
-			user.ErrUserNameRequired,
-			user.ErrEmailRequired,
-			user.ErrWeakPassword,
-			user.ErrUserNotFound,
-			user.ErrInvalidCredentials:
-			c.JSON(status, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-		}
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"message": "Registration successful",
-		"user":    response,
-	})
 }
 
 // GetProfile обработчик получения профиля пользователя

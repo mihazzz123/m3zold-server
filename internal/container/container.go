@@ -42,10 +42,9 @@ type Container struct {
 	JWTService            services.JWTService
 
 	// Use Cases
-	RegisterUseCase *userusecase.RegisterUseCase
-	ProfileUseCase  *userusecase.ProfileUseCase
-	HealthUseCase   *healthusecase.HealthUseCase
-	AuthUseCase     *authusecase.AuthUseCase
+	ProfileUseCase *userusecase.ProfileUseCase
+	HealthUseCase  *healthusecase.HealthUseCase
+	AuthUseCase    *authusecase.AuthUseCase
 
 	// Handlers
 	UserHandler              *handlers.UserHandler
@@ -88,13 +87,6 @@ func New(ctx context.Context) (*Container, error) {
 	authRepo := repository.NewAuthRepository(db)
 
 	// UseCases
-	registerUseCase := userusecase.NewRegisterUseCase(
-		userRepo,
-		passwordService,
-		idService,
-		emailValidatorService,
-		userFactory,
-	)
 	profileUseCase := userusecase.NewProfileUseCase(userRepo, emailValidatorService)
 	createDeviceUC := deviceusecase.NewCreateUseCase(deviceRepo)
 	deleteUseCase := deviceusecase.NewDeleteUseCase(deviceRepo)
@@ -103,16 +95,18 @@ func New(ctx context.Context) (*Container, error) {
 	updateStatusUseCase := deviceusecase.NewUpdateStatusUseCase(deviceRepo)
 	healthUseCase := healthusecase.NewHealthUseCase(healthRepo)
 	authUseCase := authusecase.NewAuthUseCase(
-		userRepo,
 		authRepo,
+		userRepo,
 		passwordService,
 		tokenService,
 		jwtService,
+		emailValidatorService,
 		idService,
+		userFactory,
 	)
 
 	// Initialize handlers
-	userHandler := handlers.NewUserHandler(registerUseCase, profileUseCase)
+	userHandler := handlers.NewUserHandler(profileUseCase)
 	deviceHandler := handlers.NewDeviceHandler(createDeviceUC, listDeviceUC, findUseCase, updateStatusUseCase, deleteUseCase)
 	verificationEmailHandler := handlers.NewVerificationEmailHandler(nil)
 	healthHandler := handlers.NewHealthHandler(healthUseCase)
@@ -135,10 +129,9 @@ func New(ctx context.Context) (*Container, error) {
 		TokenService:          tokenService,
 		JWTService:            jwtService,
 
-		RegisterUseCase: registerUseCase,
-		ProfileUseCase:  profileUseCase,
-		HealthUseCase:   healthUseCase,
-		AuthUseCase:     authUseCase,
+		ProfileUseCase: profileUseCase,
+		HealthUseCase:  healthUseCase,
+		AuthUseCase:    authUseCase,
 
 		UserHandler:              userHandler,
 		DeviceHandler:            deviceHandler,

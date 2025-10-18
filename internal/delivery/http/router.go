@@ -12,7 +12,7 @@ import (
 type Router struct {
 	UserHandler    *handlers.UserHandler
 	DeviceHandler  *handlers.DeviceHandler
-	AuthMiddleware gin.HandlerFunc // позже заменим на реальную JWT-мидлвару
+	AuthMiddleware gin.HandlerFunc
 }
 
 func NewRouter(di *container.Container) *gin.Engine {
@@ -49,6 +49,7 @@ func NewRouter(di *container.Container) *gin.Engine {
 		// Auth protected routes
 		protected.POST("/auth/logout", di.AuthHandler.Logout)
 		protected.POST("/auth/change-password", di.AuthHandler.ChangePassword)
+		protected.GET("/auth/me", di.AuthHandler.GetCurrentUser)
 
 		// User protected routes
 		protected.GET("/users/profile", di.UserHandler.GetProfile)

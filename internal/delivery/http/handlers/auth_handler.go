@@ -5,17 +5,20 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mihazzz123/m3zold-server/internal/domain/services"
 	"github.com/mihazzz123/m3zold-server/internal/domain/user"
 	"github.com/mihazzz123/m3zold-server/internal/usecase/auth"
 )
 
 type AuthHandler struct {
 	AuthUseCase *auth.AuthUseCase
+	UserService *services.UserService
 }
 
-func NewAuthHandler(authUseCase *auth.AuthUseCase) *AuthHandler {
+func NewAuthHandler(authUseCase *auth.AuthUseCase, userService *services.UserService) *AuthHandler {
 	return &AuthHandler{
 		AuthUseCase: authUseCase,
+		UserService: userService,
 	}
 }
 
@@ -193,4 +196,53 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		"success": true,
 		"message": "Password changed successfully",
 	})
+}
+
+// GetCurrentUser возвращает данные текущего авторизованного пользователя
+func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
+	// Получаем userID из контекста (должен быть установлен в middleware)
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "User not authenticated",
+		})
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Invalid user ID format",
+		})
+		return
+	}
+
+	// Получаем пользователя из сервиса
+	user, err := h.UserService.GetUserByID(c.Request.Context(), userIDStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to get user data",
+		})
+		return
+	}
+
+	// Формируем ответ
+	response := gin.H{
+		"success": true,
+		"data": gin.H{
+			"id":        user.ID,
+			"email":     user.Email,
+			"userName":  user.UserName,
+			"firstName": user.FirstName,
+			"lastName":  user.LastName,
+			"isActive":  user.IsActive,
+			"createdAt": user.CreatedAt,
+			"updatedAt": user.UpdatedAt,
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }

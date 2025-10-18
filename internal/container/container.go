@@ -86,6 +86,8 @@ func New(ctx context.Context) (*Container, error) {
 	healthRepo := repository.NewHealthRepo(db)
 	authRepo := repository.NewAuthRepository(db)
 
+	userService := services.NewUserService(userRepo)
+
 	// UseCases
 	profileUseCase := userusecase.NewProfileUseCase(userRepo, emailValidatorService)
 	createDeviceUC := deviceusecase.NewCreateUseCase(deviceRepo)
@@ -110,7 +112,7 @@ func New(ctx context.Context) (*Container, error) {
 	deviceHandler := handlers.NewDeviceHandler(createDeviceUC, listDeviceUC, findUseCase, updateStatusUseCase, deleteUseCase)
 	verificationEmailHandler := handlers.NewVerificationEmailHandler(nil)
 	healthHandler := handlers.NewHealthHandler(healthUseCase)
-	authHandler := handlers.NewAuthHandler(authUseCase)
+	authHandler := handlers.NewAuthHandler(authUseCase, userService)
 
 	return &Container{
 		Config:                cfg,

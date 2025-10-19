@@ -37,8 +37,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		status := http.StatusBadRequest
 
 		switch err {
-		case user.ErrEmailTaken,
-			user.ErrInvalidEmail,
+		case user.ErrInvalidEmail,
 			user.ErrPasswordConfirm,
 			user.ErrPasswordRequired,
 			user.ErrUserNameRequired,
@@ -47,6 +46,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			user.ErrUserNotFound,
 			user.ErrInvalidCredentials:
 			c.JSON(status, gin.H{"error": err.Error()})
+		case user.ErrEmailTaken:
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		}

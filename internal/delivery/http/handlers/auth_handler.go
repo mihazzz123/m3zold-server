@@ -85,10 +85,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"access_token":  token.Token,
-			"token_type":    "Bearer",
-			"expires_in":    900,                   // 15 minutes in seconds
-			"refresh_token": "will_be_implemented", // TODO: вернуть реальный refresh token
+			"token": token,
 		},
 	})
 }

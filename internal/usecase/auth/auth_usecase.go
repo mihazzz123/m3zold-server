@@ -70,14 +70,19 @@ type LoginRequest struct {
 
 // LoginResponse DTO для ответа входа
 type LoginResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int64  `json:"expires_in"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+	TokenType    string    `json:"token_type"`
+	ExpiresIn    time.Time `json:"expires_in"`
 	User         struct {
-		ID       string `json:"id"`
-		Email    string `json:"email"`
-		UserName string `json:"user_name"`
+		ID        string    `json:"id"`
+		Email     string    `json:"email"`
+		UserName  string    `json:"user_name"`
+		FirstName string    `json:"first_name"`
+		LastName  string    `json:"last_name"`
+		IsActive  bool      `json:"is_active"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
 	} `json:"user"`
 }
 
@@ -174,7 +179,7 @@ func (uc *AuthUseCase) validateInput(input RegisterRequest) error {
 	return nil
 }
 
-func (uc *AuthUseCase) Login(ctx context.Context, email, password string) (*auth.Token, error) {
+func (uc *AuthUseCase) Login(ctx context.Context, email, password string) (*LoginResponse, error) {
 	// Находим пользователя по email
 	user, err := uc.userRepo.GetByEmail(ctx, email)
 	if err != nil {
@@ -217,14 +222,22 @@ func (uc *AuthUseCase) Login(ctx context.Context, email, password string) (*auth
 		return nil, fmt.Errorf("failed to save refresh token: %w", err)
 	}
 
-	return &auth.Token{
-		ID:        uc.idService.Generate(),
-		UserID:    user.ID,
-		Token:     accessToken,
-		TokenType: auth.TokenTypeAccess,
-		ExpiresAt: time.Now().Add(15 * time.Minute), // 15 минут
-		CreatedAt: time.Now(),
-	}, nil
+	res := LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    string(auth.TokenTypeAccess),
+		ExpiresIn:    time.Now().Add(15 * time.Minute), // 15 минут
+	}
+	res.User.ID = user.ID
+	res.User.Email = user.Email
+	res.User.UserName = user.UserName
+	res.User.FirstName = user.FirstName
+	res.User.LastName = user.LastName
+	res.User.IsActive = user.IsActive
+	res.User.CreatedAt = user.CreatedAt
+	res.User.UpdatedAt = user.UpdatedAt
+
+	return &res, nil
 }
 
 func (uc *AuthUseCase) Logout(ctx context.Context, token string) error {
